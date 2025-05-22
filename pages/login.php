@@ -56,7 +56,7 @@
                   <p class="mb-0">Enter your email and password to sign in</p>
                 </div>
                 <div class="card-body">
-                  <form role="form">
+                  <form role="form" method="POST" action="../backend/auth/login.php>
                     <label>Email</label>
                     <div class="mb-3">
                       <input type="email" class="form-control" placeholder="Email" aria-label="Email" aria-describedby="email-addon">
@@ -77,7 +77,7 @@
                 <div class="card-footer text-center pt-0 px-lg-2 px-1">
                   <p class="mb-4 text-sm mx-auto">
                     Don't have an account?
-                    <a href="javascript:;" class="text-info text-gradient font-weight-bold">Sign up</a>
+                    <a href="../pages/register.php" class="text-info text-gradient font-weight-bold">Sign up</a>
                   </p>
                 </div>
               </div>
