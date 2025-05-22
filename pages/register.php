@@ -56,7 +56,7 @@
                   <p class="mb-0">Enter your details to register</p>
                 </div>
                 <div class="card-body">
-                  <form role="form" method="POST" action="../../backend/auth/register.php">
+                  <form role="form" method="POST" action="../backend/auth/register.php">
                     <label>Name</label>
                     <div class="mb-3">
                       <input type="text" class="form-control" name="name" placeholder="Name" aria-label="Name" required>
@@ -69,12 +69,9 @@
                     <div class="mb-3">
                       <input type="password" class="form-control" name="password" placeholder="Password" aria-label="Password" required>
                     </div>
-                    <label>Role</label>
+                    <label>Confirm Password</label>
                     <div class="mb-3">
-                      <select name="role" id="role" class="form-control" required>
-                        <option value="admin">Admin</option>
-                        <option value="agent">Agent</option>
-                      </select>
+                      <input type="password" class="form-control" name="confirm_password" placeholder="Confirm Password" aria-label="Confirm Password" required>
                     </div>
                     <div class="form-check form-check-info text-left">
                       <input class="form-check-input" type="checkbox" value="" id="flexCheckDefault" checked required>
