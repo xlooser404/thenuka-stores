@@ -1,10 +1,12 @@
-<?phpini_set('display_errors', 1);
+<?php
+ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
-
-
 session_start();
+error_log("Login.php - Session ID: " . session_id());
+error_log("Login.php - Session data: " . print_r($_SESSION, true));
+
 // Generate CSRF token
 if (!isset($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
@@ -54,9 +56,8 @@ if (!isset($_SESSION['csrf_token'])) {
                       <?php echo htmlspecialchars($_SESSION['error']); unset($_SESSION['error']); ?>
                     </div>
                   <?php endif; ?>
-                  
-                   <form role="form" method="POST" action="../backend/controllers/AuthController.php">
-                      <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                  <form role="form" method="POST" action="../backend/controllers/AuthController.php">
+                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                     <div class="mb-3">
                       <label for="email" class="form-label">Email</label>
                       <input type="email" id="email" name="email" class="form-control" placeholder="Email" aria-label="Email" required>
