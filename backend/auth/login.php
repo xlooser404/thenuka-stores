@@ -1,62 +1,52 @@
 <?php
-require_once '../config/database.php';
+session_start();
+require_once '../../backend/Database.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $database = new Database();
     $pdo = $database->connect();
 
-    // Get form data
-    $email = $_POST['email'];
-    $password = $_POST['password'];
+    $email = $_POST['email'] ?? '';
+    $password = $_POST['password'] ?? '';
+    $rememberMe = isset($_POST['rememberMe']);
 
     // Validate inputs
-    $errors = [];
-
-    if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        $errors[] = "Valid email is required";
-    }
-
-    if (empty($password)) {
-        $errors[] = "Password is required";
+    if (empty($email) || empty($password)) {
+        $_SESSION['error'] = "Email and password are required";
+        header("Location: ../../frontend/pages/login.php");
+        exit();
     }
 
     // Check user credentials
-    if (empty($errors)) {
-        $stmt = $pdo->prepare("SELECT * FROM users WHERE email = ?");
-        $stmt->execute([$email]);
-        $user = $stmt->fetch();
+    $stmt = $pdo->prepare("SELECT * FROM users WHERE email = ?");
+    $stmt->execute([$email]);
+    $user = $stmt->fetch();
 
-        if ($user && password_verify($password, $user['password'])) {
-            // Start session and redirect
-            session_start();
-            $_SESSION['user_id'] = $user['id'];
-            $_SESSION['user_name'] = $user['name'];
-            $_SESSION['user_email'] = $user['email'];
+    if ($user && password_verify($password, $user['password'])) {
+        // Set session variables
+        $_SESSION['user_id'] = $user['id'];
+        $_SESSION['user_email'] = $user['email'];
+        $_SESSION['user_name'] = $user['name'];
+        
+        // Handle "Remember Me" functionality
+        if ($rememberMe) {
+            $token = bin2hex(random_bytes(32));
+            $expiry = date('Y-m-d H:i:s', time() + 30 * 24 * 60 * 60); // 30 days
             
-            // Check if "Remember me" was checked
-            if (isset($_POST['rememberMe']) && $_POST['rememberMe'] == 'on') {
-                $token = bin2hex(random_bytes(32));
-                $expiry = date('Y-m-d H:i:s', time() + 30 * 24 * 60 * 60); // 30 days
-                
-                // Store token in database
-                $stmt = $pdo->prepare("UPDATE users SET remember_token = ?, token_expiry = ? WHERE id = ?");
-                $stmt->execute([$token, $expiry, $user['id']]);
-                
-                // Set cookie
-                setcookie('remember_token', $token, time() + 30 * 24 * 60 * 60, '/');
-            }
+            // Store token in database
+            $stmt = $pdo->prepare("UPDATE users SET remember_token = ?, token_expiry = ? WHERE id = ?");
+            $stmt->execute([$token, $expiry, $user['id']]);
             
-            header("Location: ../../pages/home.php");
-            exit();
-        } else {
-            $errors[] = "Invalid email or password";
+            // Set cookie (valid for 30 days)
+            setcookie('remember_token', $token, time() + 30 * 24 * 60 * 60, '/', '', true, true);
         }
+        
+        header("Location: ../../dashboard.php");
+        exit();
+    } else {
+        $_SESSION['error'] = "Invalid email or password";
+        header("Location: ../../frontend/pages/login.php");
+        exit();
     }
-
-    // Return to login page with errors
-    session_start();
-    $_SESSION['errors'] = $errors;
-    header("Location: ../../pages/login.php");
-    exit();
 }
 ?>

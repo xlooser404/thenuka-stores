@@ -4,7 +4,7 @@ session_start();
 if (!isset($_SESSION['user_id'])) {
     // Check for remember me cookie if session is expired
     if (isset($_COOKIE['remember_token'])) {
-        require_once 'backend/Database.php';
+        require_once '../backend/config/database.php';
         $database = new Database();
         $pdo = $database->connect();
         
