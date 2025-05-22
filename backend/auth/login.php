@@ -1,6 +1,6 @@
 <?php
 session_start();
-require_once '../../backend/Database.php';
+require_once '../config/database.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $database = new Database();
@@ -13,7 +13,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Validate inputs
     if (empty($email) || empty($password)) {
         $_SESSION['error'] = "Email and password are required";
-        header("Location: ../../frontend/pages/login.php");
+        header("Location: ../../pages/login.php");
         exit();
     }
 
@@ -41,11 +41,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             setcookie('remember_token', $token, time() + 30 * 24 * 60 * 60, '/', '', true, true);
         }
         
-        header("Location: ../../dashboard.php");
+        header("Location: ../../pages/home.php");
         exit();
     } else {
         $_SESSION['error'] = "Invalid email or password";
-        header("Location: ../../frontend/pages/login.php");
+        header("Location: ../../pages/login.php");
         exit();
     }
 }
