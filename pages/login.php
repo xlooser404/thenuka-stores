@@ -1,25 +1,33 @@
+<?phpini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
+
+
+session_start();
+// Generate CSRF token
+if (!isset($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+?>
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
   <link rel="apple-touch-icon" sizes="76x76" href="../assets/img/apple-icon.png">
   <link rel="icon" type="image/png" href="../assets/img/favicon.png">
-  <title>
-    Soft UI Dashboard 3 - Login
-  </title>
-  <!--     Fonts and icons     -->
+  <title>Soft UI Dashboard 3 - Login</title>
+  <!-- Fonts and icons -->
   <link href="https://fonts.googleapis.com/css?family=Inter:300,400,500,600,700,800" rel="stylesheet" />
   <!-- Nucleo Icons -->
-  <link href="https://demos.creative-tim.com/soft-ui-dashboard/assets/css/nucleo-icons.css" rel="stylesheet" />
-  <link href="https://demos.creative-tim.com/soft-ui-dashboard/assets/css/nucleo-svg.css" rel="stylesheet" />
+  <link href="../assets/css/nucleo-icons.css" rel="stylesheet" />
+  <link href="../assets/css/nucleo-svg.css" rel="stylesheet" />
   <!-- Font Awesome Icons -->
   <script src="https://kit.fontawesome.com/42d5adcbca.js" crossorigin="anonymous"></script>
   <!-- CSS Files -->
   <link id="pagestyle" href="../assets/css/soft-ui-dashboard.css?v=1.1.0" rel="stylesheet" />
 </head>
-
 <body class="">
   <div class="container position-sticky z-index-sticky top-0">
     <div class="row">
@@ -43,11 +51,12 @@
                   <!-- Error message display -->
                   <?php if (isset($_SESSION['error'])): ?>
                     <div class="alert alert-danger text-white">
-                      <?php echo $_SESSION['error']; unset($_SESSION['error']); ?>
+                      <?php echo htmlspecialchars($_SESSION['error']); unset($_SESSION['error']); ?>
                     </div>
                   <?php endif; ?>
                   
-                  <form role="form" method="POST" action="../backend/auth/login.php">
+                   <form role="form" method="POST" action="../backend/controllers/AuthController.php">
+                      <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                     <div class="mb-3">
                       <label for="email" class="form-label">Email</label>
                       <input type="email" id="email" name="email" class="form-control" placeholder="Email" aria-label="Email" required>
@@ -68,7 +77,7 @@
                 <div class="card-footer text-center pt-0 px-lg-2 px-1">
                   <p class="mb-4 text-sm mx-auto">
                     Don't have an account?
-                    <a href="../pages/register.php" class="text-info text-gradient font-weight-bold">Sign up</a>
+                    <a href="register.php" class="text-info text-gradient font-weight-bold">Sign up</a>
                   </p>
                 </div>
               </div>
@@ -83,7 +92,6 @@
       </div>
     </section>
   </main>
-
   <footer class="footer py-5">
     <div class="container">
       <div class="row">
@@ -97,7 +105,6 @@
       </div>
     </div>
   </footer>
-
   <!-- Core JS Files -->
   <script src="../assets/js/core/popper.min.js"></script>
   <script src="../assets/js/core/bootstrap.min.js"></script>
