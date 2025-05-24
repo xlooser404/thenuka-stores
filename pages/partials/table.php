@@ -63,12 +63,15 @@ function renderTable($title, $headers, $rows, $actions = []) {
                   <td class="align-middle">
                     <?php foreach ($actions as $action_key => $action_label): ?>
                       <a href="<?php echo isset($row['actions'][$action_key]) ? htmlspecialchars($row['actions'][$action_key]) : '#'; ?>" 
-                         class="btn btn-sm <?php echo $action_key === 'edit' ? 'btn-warning action-edit' : ($action_key === 'delete' ? 'btn-danger action-delete' : 'btn-info'); ?> me-1"
+                         class="btn action-button <?php echo $action_key === 'edit' ? 'btn-warning action-edit' : ($action_key === 'delete' ? 'btn-danger action-delete' : 'btn-info'); ?> me-1"
                          data-bs-toggle="tooltip" 
                          data-bs-title="<?php echo htmlspecialchars(ucfirst($action_key)); ?>"
                          data-action="<?php echo htmlspecialchars($action_key); ?>"
                          data-store='<?php echo json_encode($row); ?>'>
-                        <?php echo $action_label; ?>
+                        <span class="d-flex align-items-center">
+                          <?php echo $action_label; ?>
+                          <span class="ms-1"><?php echo htmlspecialchars(ucfirst($action_key)); ?></span>
+                        </span>
                       </a>
                     <?php endforeach; ?>
                   </td>
@@ -81,6 +84,17 @@ function renderTable($title, $headers, $rows, $actions = []) {
     </div>
   </div>
 </div>
+
+<style>
+  .action-button {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    line-height: 1;
+  }
+  .action-button i {
+    font-size: 1rem;
+  }
+</style>
 <?php
 }
 ?>

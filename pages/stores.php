@@ -1,94 +1,25 @@
 <?php
-include_once 'partials/header.html';
-include_once 'partials/sidebar.php';
-include_once 'partials/navbar.php';
-
-require_once __DIR__ . '/../backend/config/database.php';
-
-// Handle CRUD requests
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $response = ['success' => false, 'error' => ''];
-    try {
-        $database = new Database();
-        $db = $database->connect();
-
-        if ($db === false) {
-            throw new Exception("Database connection failed");
-        }
-
-        $action = $_POST['action'] ?? '';
-
-        if ($action === 'add_store') {
-            $store_name = $_POST['store_name'] ?? '';
-            $location = $_POST['location'] ?? '';
-            $manager_name = $_POST['manager_name'] ?? '';
-            $contact_email = $_POST['contact_email'] ?? '';
-            $status = $_POST['status'] ?? '';
-            $last_audit_date = $_POST['last_audit_date'] ?: null;
-
-            $stmt = $db->prepare("INSERT INTO stores (store_name, location, manager_name, contact_email, status, last_audit_date) VALUES (?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$store_name, $location, $manager_name, $contact_email, $status, $last_audit_date]);
-            $response['success'] = true;
-        } elseif ($action === 'edit_store') {
-            $id = $_POST['id'] ?? '';
-            $store_name = $_POST['store_name'] ?? '';
-            $location = $_POST['location'] ?? '';
-            $manager_name = $_POST['manager_name'] ?? '';
-            $contact_email = $_POST['contact_email'] ?? '';
-            $status = $_POST['status'] ?? '';
-            $last_audit_date = $_POST['last_audit_date'] ?: null;
-
-            $stmt = $db->prepare("UPDATE stores SET store_name = ?, location = ?, manager_name = ?, contact_email = ?, status = ?, last_audit_date = ? WHERE id = ?");
-            $stmt->execute([$store_name, $location, $manager_name, $contact_email, $status, $last_audit_date, $id]);
-            $response['success'] = true;
-        } elseif ($action === 'delete_store') {
-            $id = $_POST['id'] ?? '';
-            $stmt = $db->prepare("DELETE FROM stores WHERE id = ?");
-            $stmt->execute([$id]);
-            $response['success'] = true;
-        } else {
-            throw new Exception("Invalid action");
-        }
-    } catch (Exception $e) {
-        $response['error'] = $e->getMessage();
-    }
-    header('Content-Type: application/json');
-    echo json_encode($response);
-    exit;
+// Start session and include controller at the very top
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
 }
+
+require_once __DIR__ . '/../backend/controllers/StoreController.php';
 
 // Initialize variables
 $stores = [];
 $error = null;
 
 try {
-    // Database connection using Database class
-    $database = new Database();
-    $db = $database->connect();
-
-    if ($db === false) {
-        throw new Exception("Database connection failed");
-    }
-
-    // Fetch stores with prepared statement
-    $stmt = $db->prepare("SELECT 
-                            id, 
-                            store_name, 
-                            location, 
-                            manager_name,
-                            contact_email, 
-                            status, 
-                            last_audit_date 
-                          FROM stores");
-    $stmt->execute();
-    $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $controller = new StoreController();
+    $result = $controller->getAllStores();
 
     foreach ($result as $row) {
         $stores[] = [
             'data' => [
                 [
                     'type' => 'image',
-                    'value' => '../assets/img/small-logos/logo-store.svg',
+                    'value' => '../assets/img/small-logos/logo-atlassian.svg',
                     'label' => htmlspecialchars($row['store_name']),
                     'subtext' => htmlspecialchars($row['location'])
                 ],
@@ -138,11 +69,15 @@ $store_headers = [
 ];
 
 $store_actions = [
-    'view' => '<i class="fas fa-eye"></i>',
-    'edit' => '<i class="fas fa-edit"></i>',
-    'delete' => '<i class="fas fa-trash"></i>'
+    'view' => '<i class="fas fa-eye"></i> View',
+    'edit' => '<i class="fas fa-edit"></i> Edit',
+    'delete' => '<i class="fas fa-trash"></i> Delete'
 ];
 $add_button_label = 'Add New Store';
+
+// Now include partials that might output content
+include_once 'partials/header.html';
+include_once 'partials/sidebar.php';
 ?>
 
 <!DOCTYPE html>
@@ -159,6 +94,25 @@ $add_button_label = 'Add New Store';
     <script src="https://kit.fontawesome.com/42d5adcbca.js" crossorigin="anonymous"></script>
     <link id="pagestyle" href="../assets/css/soft-ui-dashboard.css?v=1.1.0" rel="stylesheet" />
     <style>
+        .navbar-custom {
+            background-color: #f8f9fa;
+            padding: 0.5rem 1rem;
+        }
+        .navbar-custom .form-control {
+            border-radius: 20px;
+            padding: 0.25rem 0.75rem;
+            max-width: 200px;
+        }
+        .btn-orange {
+            background-color: #f5a623;
+            border-color: #f5a623;
+            color: white;
+            padding: 0.375rem 1rem;
+        }
+        .btn-orange:hover {
+            background-color: #e69520;
+            border-color: #e69520;
+        }
         .modal-lg-custom {
             max-width: 600px;
         }
@@ -166,15 +120,42 @@ $add_button_label = 'Add New Store';
             max-height: 500px;
             overflow-y: auto;
         }
+
+        /* Updated styles for better fit and more left margin */
+        .container-fluid {
+            padding-left: 0;
+            padding-right: 0;
+        }
+        .main-content {
+            padding: 1rem;
+            overflow-x: auto; /* Ensure horizontal scrolling if content overflows */
+             margin: -1%;
+        }
+        .g-sidenav-show .col-md-4 {
+            padding-left: 2rem; /* Increase left padding for the sidebar */
+            padding-right: 0;
+        }
+        .g-sidenav-show .col-md-8 {
+            padding-left: 1.5rem; /* Add some padding to the left of the main content */
+        }
+        @media (max-width: 767.98px) {
+            .g-sidenav-show .col-md-4,
+            .g-sidenav-show .col-md-8 {
+                padding-left: 15px;
+                padding-right: 15px;
+            }
+        }
     </style>
 </head>
 <body class="g-sidenav-show bg-gray-100">
     <div class="container-fluid">
         <div class="row">
-            <div class="col-md-2">
+            <!-- Sidebar width -->
+            <div class="col-md-4">
                 <?php include 'partials/sidebar.php'; ?>
             </div>
-            <div class="col-md-10">
+            <!-- Fix main content width -->
+            <div class="col-md-16">
                 <main class="main-content position-relative max-height-vh-100 h-100 border-radius-lg">
                     <?php include 'partials/navbar.php'; ?>
                     <div class="container-fluid py-4">
@@ -183,29 +164,33 @@ $add_button_label = 'Add New Store';
                                 <?php echo htmlspecialchars($error); ?>
                             </div>
                         <?php endif; ?>
+                        <?php if (isset($_SESSION['success'])): ?>
+                            <div class="alert alert-success">
+                                <?php echo htmlspecialchars($_SESSION['success']); unset($_SESSION['success']); ?>
+                            </div>
+                        <?php endif; ?>
+                        <?php if (isset($_SESSION['error'])): ?>
+                            <div class="alert alert-danger">
+                                <?php echo htmlspecialchars($_SESSION['error']); unset($_SESSION['error']); ?>
+                            </div>
+                        <?php endif; ?>
                         <div class="row">
                             <div class="col-12">
                                 <?php include 'partials/table.php'; ?>
-                                <div class="card">
-                                    <div class="card-body">
-                                        <div class="d-flex justify-content-between align-items-center">
-                                            <h5 class="card-title mb-0">Stores Management</h5>
-                                            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addStoreModal">
-                                                <?php echo $add_button_label; ?>
-                                            </button>
-                                        </div>
-                                        <div class="table-responsive mt-3">
-                                            <?php
-                                            renderTable(
-                                                'Stores Management',
-                                                $store_headers,
-                                                $stores,
-                                                $store_actions
-                                            );
-                                            ?>
-                                        </div>
-                                    </div>
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <h5 class="mb-0">Stores Management</h5>
+                                    <button type="button" class="btn btn-orange" data-bs-toggle="modal" data-bs-target="#addStoreModal">
+                                        <?php echo $add_button_label; ?>
+                                    </button>
                                 </div>
+                                <?php
+                                renderTable(
+                                    'Stores Management',
+                                    $store_headers,
+                                    $stores,
+                                    $store_actions
+                                );
+                                ?>
                             </div>
                         </div>
                     </div>
@@ -224,7 +209,8 @@ $add_button_label = 'Add New Store';
                 </div>
                 <div class="modal-body modal-body-custom">
                     <form id="addStoreForm">
-                        <input type="hidden" name="action" value="add_store">
+                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                        <input type="hidden" name="action" value="add">
                         <div class="mb-3">
                             <label for="add_store_name" class="form-label">Store Name</label>
                             <input type="text" class="form-control" id="add_store_name" name="store_name" placeholder="Enter store name" required>
@@ -270,8 +256,9 @@ $add_button_label = 'Add New Store';
                 </div>
                 <div class="modal-body modal-body-custom">
                     <form id="editStoreForm">
+                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                         <input type="hidden" id="edit_id" name="id">
-                        <input type="hidden" name="action" value="edit_store">
+                        <input type="hidden" name="action" value="update">
                         <div class="mb-3">
                             <label for="edit_store_name" class="form-label">Store Name</label>
                             <input type="text" class="form-control" id="edit_store_name" name="store_name" required>
@@ -358,20 +345,20 @@ $add_button_label = 'Add New Store';
 
             $('#confirmDelete').on('click', function() {
                 $.ajax({
-                    url: '<?php echo basename(__FILE__); ?>',
-                    type: 'POST',
-                    data: { action: 'delete_store', id: deleteId },
+                    url: '../backend/controllers/StoreController.php?action=delete&id=' + deleteId,
+                    type: 'GET',
+                    dataType: 'json',
                     success: function(response) {
                         console.log('Delete Response:', response);
                         if (response.success) {
                             location.reload();
                         } else {
-                            alert('Error deleting store: ' + response.error);
+                            alert('Error deleting store: ' + (response.error || 'Unknown error'));
                         }
                     },
                     error: function(xhr, status, error) {
                         console.log('Delete Error:', error, xhr.responseText);
-                        alert('Error deleting store');
+                        alert('Error deleting store: ' + (xhr.responseJSON?.error || 'Unknown error'));
                     }
                 });
                 $('#deleteStoreModal').modal('hide');
@@ -381,20 +368,22 @@ $add_button_label = 'Add New Store';
                 e.preventDefault();
                 console.log('Submitting Add Form:', $(this).serialize());
                 $.ajax({
-                    url: '<?php echo basename(__FILE__); ?>',
+                    url: '../backend/controllers/StoreController.php?action=add',
                     type: 'POST',
+                    dataType: 'json',
                     data: $(this).serialize(),
                     success: function(response) {
                         console.log('Add Response:', response);
                         if (response.success) {
+                            $('#addStoreModal').modal('hide');
                             location.reload();
                         } else {
-                            alert('Error adding store: ' + response.error);
+                            alert('Error adding store: ' + (response.error || 'Unknown error'));
                         }
                     },
                     error: function(xhr, status, error) {
                         console.log('Add Error:', error, xhr.responseText);
-                        alert('Error adding store');
+                        alert('Error adding store: ' + (xhr.responseJSON?.error || 'Unknown error'));
                     }
                 });
             });
@@ -403,20 +392,22 @@ $add_button_label = 'Add New Store';
                 e.preventDefault();
                 console.log('Submitting Edit Form:', $(this).serialize());
                 $.ajax({
-                    url: '<?php echo basename(__FILE__); ?>',
+                    url: '../backend/controllers/StoreController.php?action=update',
                     type: 'POST',
+                    dataType: 'json',
                     data: $(this).serialize(),
                     success: function(response) {
                         console.log('Edit Response:', response);
                         if (response.success) {
+                            $('#editStoreModal').modal('hide');
                             location.reload();
                         } else {
-                            alert('Error updating store: ' + response.error);
+                            alert('Error updating store: ' + (response.error || 'Unknown error'));
                         }
                     },
                     error: function(xhr, status, error) {
                         console.log('Edit Error:', error, xhr.responseText);
-                        alert('Error updating store');
+                        alert('Error updating store: ' + (xhr.responseJSON?.error || 'Unknown error'));
                     }
                 });
             });
