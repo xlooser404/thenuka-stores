@@ -1,320 +1,215 @@
-<?php include 'partials/header.html'; ?>
-<?php include 'partials/sidebar.php'; ?>
-<?php include 'partials/navbar.php'; ?>
-
-
 <?php
-require_once 'config/database.php'; // Database configuration
+session_start();
+error_log("inventory.php - Session ID: " . session_id());
+error_log("inventory.php - Session data: " . print_r($_SESSION, true));
+error_log("inventory.php - CSRF token: " . ($_SESSION['csrf_token'] ?? 'Not set'));
 
-// Initialize variables
-$inventory = [];
-$error = null;
-$lowStockCount = 0;
-
-try {
-    // Database connection
-    $db = new mysqli('localhost', 'username', 'password', 'delivery_billing');
-    if ($db->connect_error) {
-        throw new Exception("Connection failed: " . $db->connect_error);
-    }
-
-    // Fetch inventory data with prepared statement
-    $stmt = $db->prepare("SELECT 
-                            i.id,
-                            p.product_name,
-                            p.sku,
-                            l.location_name,
-                            i.current_quantity,
-                            i.reorder_level,
-                            i.last_updated,
-                            p.status
-                          FROM inventory i
-                          JOIN products p ON i.product_id = p.id
-                          JOIN locations l ON i.location_id = l.id
-                          ORDER BY l.location_name, p.product_name");
-    $stmt->execute();
-    $result = $stmt->get_result();
-
-    while ($row = $result->fetch_assoc()) {
-        $isLowStock = $row['current_quantity'] <= $row['reorder_level'];
-        if ($isLowStock) $lowStockCount++;
-        
-        $inventory[] = [
-            'data' => [
-                [
-                    'type' => 'image',
-                    'value' => '../assets/img/products/' . htmlspecialchars($row['sku']) . '.jpg',
-                    'label' => htmlspecialchars($row['product_name']),
-                    'subtext' => 'SKU: ' . htmlspecialchars($row['sku'])
-                ],
-                [
-                    'value' => htmlspecialchars($row['location_name']),
-                    'text_class' => 'text-sm'
-                ],
-                [
-                    'value' => $row['current_quantity'],
-                    'text_class' => $isLowStock ? 'font-weight-bold text-danger' : 'font-weight-bold'
-                ],
-                [
-                    'value' => $row['reorder_level'],
-                    'text_class' => 'text-sm'
-                ],
-                [
-                    'type' => 'badge',
-                    'value' => $isLowStock ? 'Reorder' : 'OK',
-                    'badge_class' => $isLowStock ? 'bg-gradient-danger' : 'bg-gradient-success'
-                ],
-                [
-                    'value' => date('M d, Y H:i', strtotime($row['last_updated'])),
-                    'text_class' => 'text-xs text-secondary'
-                ],
-                [
-                    'type' => 'badge',
-                    'value' => htmlspecialchars($row['status']),
-                    'badge_class' => $row['status'] === 'Active' ? 'bg-gradient-info' : 'bg-gradient-secondary'
-                ]
-            ],
-            'row_class' => $isLowStock ? 'table-warning' : '',
-            'actions' => [
-                'adjust' => 'adjust_inventory.php?id=' . urlencode($row['id']),
-                'transfer' => 'transfer_inventory.php?id=' . urlencode($row['id']),
-                'history' => 'inventory_history.php?id=' . urlencode($row['id'])
-            ]
-        ];
-    }
-    $stmt->close();
-    $db->close();
-} catch (Exception $e) {
-    $error = "Error loading inventory: " . $e->getMessage();
+// Restrict access to admin role
+if (!isset($_SESSION['user'])) {
+    error_log("inventory.php - No user session.");
+    $_SESSION['error'] = 'Unauthorized access: No user session.';
+    header('Location: /thenuka-stores/pages/login.php?redirect=' . urlencode('/thenuka-stores/pages/inventory.php'));
+    exit;
+}
+if ($_SESSION['user']['role'] !== 'admin') {
+    error_log("inventory.php - User role: " . $_SESSION['user']['role']);
+    $_SESSION['error'] = 'Unauthorized access: Not an admin.';
+    header('Location: /thenuka-stores/pages/login.php?redirect=' . urlencode('/thenuka-stores/pages/inventory.php'));
+    exit;
 }
 
-// Table configuration
-$inventory_headers = [
-    ['label' => 'Product'],
-    ['label' => 'Location'],
-    ['label' => 'Current Qty', 'class' => 'text-center'],
-    ['label' => 'Reorder Level', 'class' => 'text-center'],
-    ['label' => 'Status', 'class' => 'text-center'],
-    ['label' => 'Last Updated', 'class' => 'text-center'],
-    ['label' => 'Product Status', 'class' => 'text-center']
-];
+// Generate CSRF token once per session
+if (!isset($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    error_log("inventory.php - Generated new CSRF token: " . $_SESSION['csrf_token']);
+}
 
-$inventory_actions = [
-    'adjust' => '<i class="fas fa-plus-minus" data-toggle="tooltip" title="Adjust Stock"></i>',
-    'transfer' => '<i class="fas fa-truck-fast" data-toggle="tooltip" title="Transfer"></i>',
-    'history' => '<i class="fas fa-history" data-toggle="tooltip" title="View History"></i>'
-];
+// Log form hidden fields
+error_log("inventory.php - Form hidden fields: " . print_r(['csrf_token' => $_SESSION['csrf_token']], true));
 
-$add_button_label = 'Add Inventory Item';
+// Include InventoryController
+require_once __DIR__ . '/../backend/controllers/InventoryController.php';
+$controller = new InventoryController();
+$inventory = $controller->getAllInventory();
+
+// Prepare data for table.php
+$title = "Inventory Table";
+$headers = [
+    ['label' => 'ID', 'class' => ''],
+    ['label' => 'Product Name', 'class' => ''],
+    ['label' => 'Quantity', 'class' => ''],
+    ['label' => 'Location', 'class' => ''],
+    ['label' => 'Last Updated', 'class' => ''],
+    ['label' => 'Actions', 'class' => 'text-center']
+];
+$rows = [];
+foreach ($inventory as $item) {
+    $rows[] = [
+        'data' => [
+            ['value' => htmlspecialchars($item['id']), 'text_class' => 'text-sm'],
+            ['value' => htmlspecialchars($item['product_name']), 'text_class' => 'text-sm'],
+            ['value' => htmlspecialchars($item['quantity']), 'text_class' => 'text-sm'],
+            ['value' => htmlspecialchars($item['location'] ?? 'N/A'), 'text_class' => 'text-sm'],
+            ['value' => htmlspecialchars($item['last_updated'] ?? 'N/A'), 'text_class' => 'text-sm']
+        ],
+        'actions' => [
+            'edit' => "javascript:void(0);",
+            'delete' => "/thenuka-stores/backend/controllers/InventoryController.php?action=delete&id=" . $item['id']
+        ]
+    ];
+}
+$actions = [
+    'edit' => 'Edit',
+    'delete' => 'Delete'
+];
+$add_button_label = "Add Inventory Item";
 $form_fields = [
-    'product_id' => [
-        'label' => 'Product',
-        'type' => 'select',
-        'options_query' => 'SELECT id, CONCAT(product_name, " (", sku, ")") as name FROM products WHERE status = "Active"'
-    ],
-    'location_id' => [
-        'label' => 'Location',
-        'type' => 'select',
-        'options_query' => 'SELECT id, location_name FROM locations WHERE status = "Active"'
-    ],
-    'initial_quantity' => [
-        'label' => 'Initial Quantity',
-        'type' => 'number',
-        'min' => '0'
-    ],
-    'reorder_level' => [
-        'label' => 'Reorder Level',
-        'type' => 'number',
-        'min' => '0',
-        'placeholder' => 'Set alert threshold'
-    ]
+    'product_name' => ['label' => 'Product Name', 'type' => 'text'],
+    'quantity' => ['label' => 'Quantity', 'type' => 'number', 'required' => true],
+    'location' => ['label' => 'Location', 'type' => 'text']
 ];
-$form_action = 'add_inventory.php';
+$form_action = "/thenuka-stores/backend/controllers/InventoryController.php?action=add";
+$form_hidden_fields = [
+    'csrf_token' => $_SESSION['csrf_token']
+];
 ?>
 
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-  <link rel="apple-touch-icon" sizes="76x76" href="../assets/img/apple-icon.png">
-  <link rel="icon" type="image/png" href="../assets/img/favicon.png">
-  <title>Inventory Management - Delivery & Billing</title>
-  <!-- Fonts and icons -->
-  <link href="https://fonts.googleapis.com/css?family=Inter:300,400,500,600,700,800" rel="stylesheet" />
-  <!-- Nucleo Icons -->
-  <link href="../assets/css/nucleo-icons.css" rel="stylesheet" />
-  <link href="../assets/css/nucleo-svg.css" rel="stylesheet" />
-  <!-- Font Awesome Icons -->
-  <script src="https://kit.fontawesome.com/42d5adcbca.js" crossorigin="anonymous"></script>
-  <!-- CSS Files -->
-  <link id="pagestyle" href="../assets/css/soft-ui-dashboard.css?v=1.1.0" rel="stylesheet" />
-  <style>
-    .inventory-alert {
-      position: fixed;
-      bottom: 20px;
-      right: 20px;
-      z-index: 1000;
-      display: <?php echo $lowStockCount > 0 ? 'block' : 'none'; ?>;
-    }
-    .low-stock-row {
-      animation: pulseWarning 2s infinite;
-    }
-    @keyframes pulseWarning {
-      0% { background-color: rgba(255,193,7,0.1); }
-      50% { background-color: rgba(255,193,7,0.3); }
-      100% { background-color: rgba(255,193,7,0.1); }
-    }
-  </style>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <link rel="apple-touch-icon" sizes="76x76" href="../assets/img/apple-icon.png">
+    <link rel="icon" type="image/png" href="../assets/img/favicon.png">
+    <title>Inventory - Delivery & Billing</title>
+    <link href="https://fonts.googleapis.com/css?family=Inter:300,400,500,600,700,800" rel="stylesheet" />
+    <link href="../assets/css/nucleo-icons.css" rel="stylesheet" />
+    <link href="../assets/css/nucleo-svg.css" rel="stylesheet" />
+    <script src="https://kit.fontawesome.com/42d5adcbca.js" crossorigin="anonymous"></script>
+    <link id="pagestyle" href="../assets/css/soft-ui-dashboard.css?v=1.1.0" rel="stylesheet" />
 </head>
 <body class="g-sidenav-show bg-gray-100">
-  <div class="container-fluid">
-    <div class="row">
-      <div class="col-md-2">
-        <?php include 'partials/sidebar.php'; ?>
-      </div>
-      <div class="col-md-10">
-        <main class="main-content position-relative max-height-vh-100 h-100 border-radius-lg">
-          <!-- Navbar -->
-          <?php include 'partials/navbar.php'; ?>
-          <!-- End Navbar -->
-          <div class="container-fluid py-4">
-            <?php if ($error): ?>
-              <div class="alert alert-danger">
-                <?php echo htmlspecialchars($error); ?>
-              </div>
-            <?php endif; ?>
-            
-            <!-- Inventory Summary Cards -->
-            <div class="row mb-4">
-              <div class="col-xl-3 col-sm-6 mb-xl-0 mb-4">
-                <div class="card">
-                  <div class="card-body p-3">
-                    <div class="row">
-                      <div class="col-8">
-                        <div class="numbers">
-                          <p class="text-sm mb-0 text-capitalize font-weight-bold">Total Items</p>
-                          <h5 class="font-weight-bolder mb-0">
-                            <?php echo count($inventory); ?>
-                          </h5>
-                        </div>
-                      </div>
-                      <div class="col-4 text-end">
-                        <div class="icon icon-shape bg-gradient-primary shadow text-center border-radius-md">
-                          <i class="fas fa-boxes text-lg opacity-10" aria-hidden="true"></i>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div class="col-xl-3 col-sm-6 mb-xl-0 mb-4">
-                <div class="card">
-                  <div class="card-body p-3">
-                    <div class="row">
-                      <div class="col-8">
-                        <div class="numbers">
-                          <p class="text-sm mb-0 text-capitalize font-weight-bold">Low Stock</p>
-                          <h5 class="font-weight-bolder mb-0">
-                            <?php echo $lowStockCount; ?>
-                            <?php if ($lowStockCount > 0): ?>
-                              <span class="text-danger text-sm font-weight-bolder">(Needs Attention)</span>
-                            <?php endif; ?>
-                          </h5>
-                        </div>
-                      </div>
-                      <div class="col-4 text-end">
-                        <div class="icon icon-shape bg-gradient-danger shadow text-center border-radius-md">
-                          <i class="fas fa-exclamation-triangle text-lg opacity-10" aria-hidden="true"></i>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-2">
+                <?php include 'partials/sidebar.php'; ?>
             </div>
-            
-            <div class="row">
-              <div class="col-12">
-                <?php
-                include 'partials/table.php';
-                renderTable(
-                    'Inventory Overview', 
-                    $inventory_headers, 
-                    $inventory, 
-                    $inventory_actions, 
-                    $add_button_label, 
-                    $form_fields, 
-                    $form_action
-                );
-                ?>
-              </div>
+            <div class="col-md-10">
+                <main class="main-content position-relative max-height-vh-100 h-100 border-radius-lg">
+                    <?php include 'partials/navbar.php'; ?>
+                    <div class="container-fluid py-4">
+                        <div class="row">
+                            <div class="col-12">
+                                <!-- Success/Error Messages -->
+                                <?php if (isset($_SESSION['success'])): ?>
+                                    <div class="alert alert-success text-white">
+                                        <?php echo htmlspecialchars($_SESSION['success']); unset($_SESSION['success']); ?>
+                                    </div>
+                                <?php endif; ?>
+                                <?php if (isset($_SESSION['error'])): ?>
+                                    <div class="alert alert-danger text-white">
+                                        <?php echo htmlspecialchars($_SESSION['error']); unset($_SESSION['error']); ?>
+                                    </div>
+                                <?php endif; ?>
+                                <!-- Inventory Table -->
+                                <?php
+                                include 'partials/table.php';
+                                renderTable($title, $headers, $rows, $actions, $add_button_label, $form_fields, $form_action, $form_hidden_fields);
+                                ?>
+                            </div>
+                        </div>
+                    </div>
+                </main>
             </div>
-          </div>
-        </main>
-      </div>
+        </div>
     </div>
-  </div>
 
-  <!-- Low Stock Alert Notification -->
-  <?php if ($lowStockCount > 0): ?>
-    <div class="inventory-alert">
-      <div class="alert alert-danger alert-dismissible fade show" role="alert">
-        <span class="alert-icon"><i class="fas fa-exclamation-triangle"></i></span>
-        <span class="alert-text"><strong><?php echo $lowStockCount; ?> items</strong> need reordering!</span>
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close">
-          <span aria-hidden="true">&times;</span>
-        </button>
-      </div>
+    <!-- Edit Inventory Modal -->
+    <div class="modal fade" id="editInventoryModal" tabindex="-1" aria-labelledby="editInventoryModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="editInventoryModalLabel">Edit Inventory Item</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form action="/thenuka-stores/backend/controllers/InventoryController.php?action=update" method="POST">
+                    <div class="modal-body">
+                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                        <input type="hidden" name="id" id="edit_id">
+                        <div class="mb-3">
+                            <label for="edit_product_name" class="form-label">Product Name</label>
+                            <input type="text" class="form-control" id="edit_product_name" name="product_name" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="edit_quantity" class="form-label">Quantity</label>
+                            <input type="number" class="form-control" id="edit_quantity" name="quantity" required min="0">
+                        </div>
+                        <div class="mb-3">
+                            <label for="edit_location" class="form-label">Location</label>
+                            <input type="text" class="form-control" id="edit_location" name="location">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        <button type="submit" class="btn btn-primary">Update Inventory</button>
+                    </div>
+                </form>
+            </div>
+        </div>
     </div>
-  <?php endif; ?>
 
-  <!-- Core JS Files -->
-  <script src="../assets/js/core/popper.min.js"></script>
-  <script src="../assets/js/core/bootstrap.min.js"></script>
-  <script src="../assets/js/plugins/perfect-scrollbar.min.js"></script>
-  <script src="../assets/js/plugins/smooth-scrollbar.min.js"></script>
-  <script src="../assets/js/soft-ui-dashboard.min.js?v=1.1.0"></script>
-  
-  <script>
-    // Inventory-specific JavaScript
-    $(document).ready(function() {
-      // Enable tooltips for action icons
-      $('[data-toggle="tooltip"]').tooltip();
-      
-      // Dynamic product and location loading for form
-      $.get('api/get_products.php', function(products) {
-        var select = $('#product_id');
-        select.empty();
-        $.each(products, function(key, value) {
-          select.append($('<option>', {
-            value: key,
-            text: value
-          }));
-        });
-      }, 'json');
-      
-      $.get('api/get_locations.php', function(locations) {
-        var select = $('#location_id');
-        select.empty();
-        $.each(locations, function(key, value) {
-          select.append($('<option>', {
-            value: key,
-            text: value
-          }));
-        });
-      }, 'json');
-      
-      // Flash low stock rows
-      $('.table-warning').hover(
-        function() {
-          $(this).addClass('low-stock-row');
-        }, 
-        function() {
-          $(this).removeClass('low-stock-row');
+    <!-- Core JS Files -->
+    <script src="../assets/js/core/popper.min.js"></script>
+    <script src="../assets/js/core/bootstrap.min.js"></script>
+    <script src="../assets/js/plugins/perfect-scrollbar.min.js"></script>
+    <script src="../assets/js/plugins/smooth-scrollbar.min.js"></script>
+    <script src="../assets/js/soft-ui-dashboard.min.js?v=1.1.0"></script>
+    <script>
+        // Populate edit modal with inventory data
+        function populateEditModal(item) {
+            document.getElementById('edit_id').value = item.id;
+            document.getElementById('edit_product_name').value = item.product_name;
+            document.getElementById('edit_quantity').value = item.quantity;
+            document.getElementById('edit_location').value = item.location || '';
         }
-      );
-    });
-  </script>
+
+        // Initialize edit modal on click
+        document.querySelectorAll('a[data-action="edit"]').forEach(link => {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+                const itemId = parseInt(this.getAttribute('data-id'));
+                const inventory = <?php echo json_encode($inventory); ?>;
+                const item = inventory.find(i => i.id === itemId);
+                if (item) {
+                    populateEditModal(item);
+                    const modal = new bootstrap.Modal(document.getElementById('editInventoryModal'));
+                    modal.show();
+                } else {
+                    console.error('Inventory item not found for ID:', itemId);
+                }
+            });
+        });
+
+        // Confirm delete action
+        document.querySelectorAll('a[data-action="delete"]').forEach(link => {
+            link.addEventListener('click', function(e) {
+                if (!confirm('Are you sure you want to delete this inventory item?')) {
+                    e.preventDefault();
+                }
+            });
+        });
+
+        // Initialize tooltips for action buttons
+        document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(element => {
+            new bootstrap.Tooltip(element);
+        });
+
+        // Initialize scrollbar for Windows
+        var win = navigator.platform.indexOf('Win') > -1;
+        if (win && document.querySelector('#sidenav-scrollbar')) {
+            var options = { damping: '0.5' };
+            Scrollbar.init(document.querySelector('#sidenav-scrollbar'), options);
+        }
+    </script>
 </body>
 </html>
