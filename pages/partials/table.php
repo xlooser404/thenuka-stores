@@ -32,7 +32,7 @@ function renderTable($title, $headers, $rows, $actions = [], $add_button_label =
                     <label for="<?php echo htmlspecialchars($name); ?>" class="form-label">
                       <?php echo htmlspecialchars($field['label']); ?>
                     </label>
-                    <?php if ($field['type'] === 'text' || $field['type'] === 'email' || $field['type'] === 'number' || $field['type'] === 'date'): ?>
+                    <?php if ($field['type'] === 'text' || $field['type'] === 'email' || $field['type'] === 'password' || $field['type'] === 'number' || $field['type'] === 'date'): ?>
                       <input type="<?php echo htmlspecialchars($field['type']); ?>"
                         class="form-control"
                         id="<?php echo htmlspecialchars($name); ?>"
