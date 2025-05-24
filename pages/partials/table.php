@@ -2,73 +2,9 @@
 /**
  * Reusable Table Component for Soft UI Dashboard
  */
-function renderTable($title, $headers, $rows, $actions = [], $add_button_label = '', $form_fields = [], $form_action = '', $form_hidden_fields = []) {
+function renderTable($title, $headers, $rows, $actions = []) {
 ?>
 <div class="container-fluid">
-  <?php if ($add_button_label && $form_fields && $form_action): ?>
-    <div class="d-flex justify-content-end mb-3">
-      <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addModal">
-        <?php echo htmlspecialchars($add_button_label); ?>
-      </button>
-    </div>
-
-    <!-- Add Modal -->
-    <div class="modal fade" id="addModal" tabindex="-1" aria-labelledby="addModalLabel" aria-hidden="true">
-      <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title" id="addModalLabel"><?php echo htmlspecialchars($add_button_label); ?></h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-          </div>
-          <form action="<?php echo htmlspecialchars($form_action); ?>" method="POST">
-            <div class="modal-body">
-              <?php foreach ($form_hidden_fields as $name => $value): ?>
-                <input type="hidden" name="<?php echo htmlspecialchars($name); ?>" value="<?php echo htmlspecialchars($value); ?>">
-              <?php endforeach; ?>
-              <?php foreach ($form_fields as $name => $field): ?>
-                <div class="mb-3">
-                  <label for="<?php echo htmlspecialchars($name); ?>" class="form-label">
-                    <?php echo htmlspecialchars($field['label']); ?>
-                  </label>
-                  <?php if ($field['type'] === 'text' || $field['type'] === 'email' || $field['type'] === 'number'): ?>
-                    <input type="<?php echo htmlspecialchars($field['type']); ?>" 
-                           class="form-control" 
-                           id="<?php echo htmlspecialchars($name); ?>" 
-                           name="<?php echo htmlspecialchars($name); ?>" 
-                           <?php echo isset($field['step']) ? 'step="' . htmlspecialchars($field['step']) . '"' : ''; ?>
-                           <?php echo isset($field['required']) && $field['required'] ? 'required' : ''; ?>
-                           <?php echo $field['type'] === 'number' ? 'min="0"' : ''; ?>>
-                  <?php elseif ($field['type'] === 'textarea'): ?>
-                    <textarea class="form-control" 
-                              id="<?php echo htmlspecialchars($name); ?>" 
-                              name="<?php echo htmlspecialchars($name); ?>" 
-                              rows="3"
-                              <?php echo isset($field['required']) && $field['required'] ? 'required' : ''; ?>></textarea>
-                  <?php elseif ($field['type'] === 'select'): ?>
-                    <select class="form-select" 
-                            id="<?php echo htmlspecialchars($name); ?>" 
-                            name="<?php echo htmlspecialchars($name); ?>" 
-                            <?php echo isset($field['required']) && $field['required'] ? 'required' : ''; ?>>
-                      <?php foreach ($field['options'] as $value => $label): ?>
-                        <option value="<?php echo htmlspecialchars($value); ?>">
-                          <?php echo htmlspecialchars($label); ?>
-                        </option>
-                      <?php endforeach; ?>
-                    </select>
-                  <?php endif; ?>
-                </div>
-              <?php endforeach; ?>
-            </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-              <button type="submit" class="btn btn-primary">Save</button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
-  <?php endif; ?>
-
   <div class="card mb-4">
     <div class="card-header pb-0">
       <h6><?php echo htmlspecialchars($title); ?></h6>
@@ -127,12 +63,12 @@ function renderTable($title, $headers, $rows, $actions = [], $add_button_label =
                   <td class="align-middle">
                     <?php foreach ($actions as $action_key => $action_label): ?>
                       <a href="<?php echo isset($row['actions'][$action_key]) ? htmlspecialchars($row['actions'][$action_key]) : '#'; ?>" 
-                         class="btn btn-sm <?php echo $action_key === 'edit' ? 'btn-warning' : 'btn-danger'; ?> me-1"
+                         class="btn btn-sm <?php echo $action_key === 'edit' ? 'btn-warning action-edit' : ($action_key === 'delete' ? 'btn-danger action-delete' : 'btn-info'); ?> me-1"
                          data-bs-toggle="tooltip" 
-                         data-bs-title="<?php echo htmlspecialchars($action_label); ?>"
+                         data-bs-title="<?php echo htmlspecialchars(ucfirst($action_key)); ?>"
                          data-action="<?php echo htmlspecialchars($action_key); ?>"
-                         data-id="<?php echo htmlspecialchars($row['data'][0]['value']); ?>">
-                        <?php echo htmlspecialchars($action_label); ?>
+                         data-store='<?php echo json_encode($row); ?>'>
+                        <?php echo $action_label; ?>
                       </a>
                     <?php endforeach; ?>
                   </td>
