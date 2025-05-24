@@ -1,354 +1,229 @@
-<?php include 'partials/header.html'; ?>
-<?php include 'partials/sidebar.php'; ?>
-<?php include 'partials/navbar.php'; ?>
-
-
 <?php
-require_once 'config/database.php'; // Database configuration
+session_start();
+error_log("agents.php - Session ID: " . session_id());
+error_log("agents.php - Session data: " . print_r($_SESSION, true));
+error_log("agents.php - CSRF token: " . ($_SESSION['csrf_token'] ?? 'Not set'));
 
-// Initialize variables
-$agents = [];
-$error = null;
-$activeAgents = 0;
-
-try {
-    // Database connection
-    $db = new mysqli('localhost', 'username', 'password', 'delivery_billing');
-    if ($db->connect_error) {
-        throw new Exception("Connection failed: " . $db->connect_error);
-    }
-
-    // Fetch agent data with prepared statement
-    $stmt = $db->prepare("SELECT 
-                            a.agent_id,
-                            a.agent_name,
-                            a.phone,
-                            a.email,
-                            a.vehicle_type,
-                            a.availability_status,
-                            a.rating,
-                            COUNT(d.delivery_id) AS deliveries_completed,
-                            MAX(d.delivery_date) AS last_delivery_date
-                          FROM delivery_agents a
-                          LEFT JOIN deliveries d ON a.agent_id = d.agent_id
-                          GROUP BY a.agent_id
-                          ORDER BY a.availability_status, deliveries_completed DESC");
-    $stmt->execute();
-    $result = $stmt->get_result();
-
-    while ($row = $result->fetch_assoc()) {
-        if ($row['availability_status'] === 'Available') $activeAgents++;
-        
-        $agents[] = [
-            'data' => [
-                [
-                    'type' => 'image',
-                    'value' => '../assets/img/team-3.jpg',
-                    'label' => htmlspecialchars($row['agent_name']),
-                    'subtext' => htmlspecialchars($row['vehicle_type'])
-                ],
-                [
-                    'value' => htmlspecialchars($row['phone']),
-                    'text_class' => 'text-sm'
-                ],
-                [
-                    'value' => htmlspecialchars($row['email']),
-                    'text_class' => 'text-xs text-secondary'
-                ],
-                [
-                    'type' => 'badge',
-                    'value' => htmlspecialchars($row['availability_status']),
-                    'badge_class' => match($row['availability_status']) {
-                        'Available' => 'bg-gradient-success',
-                        'On Delivery' => 'bg-gradient-info',
-                        'Off Duty' => 'bg-gradient-secondary',
-                        'On Leave' => 'bg-gradient-warning',
-                        default => 'bg-gradient-dark'
-                    }
-                ],
-                [
-                    'type' => 'stars',
-                    'value' => $row['rating'],
-                    'max' => 5,
-                    'text_class' => 'text-center'
-                ],
-                [
-                    'value' => $row['deliveries_completed'],
-                    'text_class' => 'text-center font-weight-bold'
-                ],
-                [
-                    'value' => $row['last_delivery_date'] ? date('M d, Y', strtotime($row['last_delivery_date'])) : 'Never',
-                    'text_class' => 'text-xs'
-                ]
-            ],
-            'actions' => [
-                'assign' => 'assign_delivery.php?agent_id=' . urlencode($row['agent_id']),
-                'edit' => 'edit_agent.php?id=' . urlencode($row['agent_id']),
-                'schedule' => 'agent_schedule.php?id=' . urlencode($row['agent_id'])
-            ]
-        ];
-    }
-    $stmt->close();
-    $db->close();
-} catch (Exception $e) {
-    $error = "Error loading agents: " . $e->getMessage();
+// Restrict access to admin role
+if (!isset($_SESSION['user'])) {
+    error_log("agents.php - No user session.");
+    $_SESSION['error'] = 'Unauthorized access: No user session.';
+    header('Location: /thenuka-stores/pages/login.php?redirect=' . urlencode('/thenuka-stores/pages/agents.php'));
+    exit;
+}
+if ($_SESSION['user']['role'] !== 'admin') {
+    error_log("agents.php - User role: " . $_SESSION['user']['role']);
+    $_SESSION['error'] = 'Unauthorized access: Not an admin.';
+    header('Location: /thenuka-stores/pages/login.php?redirect=' . urlencode('/thenuka-stores/pages/agents.php'));
+    exit;
 }
 
-// Table configuration
-$agent_headers = [
-    ['label' => 'Agent'],
-    ['label' => 'Phone'],
-    ['label' => 'Email'],
-    ['label' => 'Status', 'class' => 'text-center'],
-    ['label' => 'Rating', 'class' => 'text-center'],
-    ['label' => 'Deliveries', 'class' => 'text-center'],
-    ['label' => 'Last Delivery', 'class' => 'text-center']
-];
+// Generate CSRF token once per session
+if (!isset($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    error_log("agents.php - Generated new CSRF token: " . $_SESSION['csrf_token']);
+}
 
-$agent_actions = [
-    'assign' => '<i class="fas fa-truck-ramp-box" data-toggle="tooltip" title="Assign Delivery"></i>',
-    'edit' => '<i class="fas fa-user-edit" data-toggle="tooltip" title="Edit Agent"></i>',
-    'schedule' => '<i class="fas fa-calendar-alt" data-toggle="tooltip" title="View Schedule"></i>'
-];
+// Log form hidden fields
+error_log("agents.php - Form hidden fields: " . print_r(['csrf_token' => $_SESSION['csrf_token']], true));
 
-$add_button_label = 'Add New Agent';
+// Include AgentController
+require_once __DIR__ . '/../backend/controllers/AgentController.php';
+$controller = new AgentController();
+$agents = $controller->getAllAgents();
+
+// Prepare data for table.php
+$title = "Agents Table";
+$headers = [
+    ['label' => 'ID', 'class' => ''],
+    ['label' => 'First Name', 'class' => ''],
+    ['label' => 'Last Name', 'class' => ''],
+    ['label' => 'Email', 'class' => ''],
+    ['label' => 'Phone', 'class' => ''],
+    ['label' => 'Region', 'class' => ''],
+    ['label' => 'Actions', 'class' => 'text-center']
+];
+$rows = [];
+foreach ($agents as $agent) {
+    $rows[] = [
+        'data' => [
+            ['value' => htmlspecialchars($agent['id']), 'text_class' => 'text-sm'],
+            ['value' => htmlspecialchars($agent['first_name']), 'text_class' => 'text-sm'],
+            ['value' => htmlspecialchars($agent['last_name']), 'text_class' => 'text-sm'],
+            ['value' => htmlspecialchars($agent['email']), 'text_class' => 'text-sm'],
+            ['value' => htmlspecialchars($agent['phone'] ?? 'N/A'), 'text_class' => 'text-sm'],
+            ['value' => htmlspecialchars($agent['region'] ?? 'N/A'), 'text_class' => 'text-sm']
+        ],
+        'actions' => [
+            'edit' => "javascript:void(0);",
+            'delete' => "/thenuka-stores/backend/controllers/AgentController.php?action=delete&id=" . $agent['id']
+        ]
+    ];
+}
+$actions = [
+    'edit' => 'Edit',
+    'delete' => 'Delete'
+];
+$add_button_label = "Add Agent";
 $form_fields = [
-    'agent_name' => [
-        'label' => 'Full Name',
-        'type' => 'text',
-        'placeholder' => 'Enter agent name'
-    ],
-    'phone' => [
-        'label' => 'Phone Number',
-        'type' => 'tel',
-        'pattern' => '[0-9]{10}'
-    ],
-    'email' => [
-        'label' => 'Email',
-        'type' => 'email'
-    ],
-    'vehicle_type' => [
-        'label' => 'Vehicle Type',
-        'type' => 'select',
-        'options' => [
-            'Motorcycle' => 'Motorcycle',
-            'Car' => 'Car',
-            'Truck' => 'Truck',
-            'Bicycle' => 'Bicycle'
-        ]
-    ],
-    'license_number' => [
-        'label' => 'License Number',
-        'type' => 'text'
-    ],
-    'availability_status' => [
-        'label' => 'Initial Status',
-        'type' => 'select',
-        'options' => [
-            'Available' => 'Available',
-            'Off Duty' => 'Off Duty'
-        ]
-    ]
+    'first_name' => ['label' => 'First Name', 'type' => 'text', 'required' => true],
+    'last_name' => ['label' => 'Last Name', 'type' => 'text', 'required' => true],
+    'email' => ['label' => 'Email', 'type' => 'email', 'required' => true],
+    'phone' => ['label' => 'Phone', 'type' => 'text'],
+    'region' => ['label' => 'Region', 'type' => 'text']
 ];
-$form_action = 'add_agent.php';
+$form_action = "/thenuka-stores/backend/controllers/AgentController.php?action=add";
+$form_hidden_fields = [
+    'csrf_token' => $_SESSION['csrf_token']
+];
 ?>
 
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-  <link rel="apple-touch-icon" sizes="76x76" href="../assets/img/apple-icon.png">
-  <link rel="icon" type="image/png" href="../assets/img/favicon.png">
-  <title>Delivery Agents - Delivery & Billing</title>
-  <!-- Fonts and icons -->
-  <link href="https://fonts.googleapis.com/css?family=Inter:300,400,500,600,700,800" rel="stylesheet" />
-  <!-- Nucleo Icons -->
-  <link href="../assets/css/nucleo-icons.css" rel="stylesheet" />
-  <link href="../assets/css/nucleo-svg.css" rel="stylesheet" />
-  <!-- Font Awesome Icons -->
-  <script src="https://kit.fontawesome.com/42d5adcbca.js" crossorigin="anonymous"></script>
-  <!-- CSS Files -->
-  <link id="pagestyle" href="../assets/css/soft-ui-dashboard.css?v=1.1.0" rel="stylesheet" />
-  <style>
-    .stars {
-      color: #FFD700;
-      font-size: 1.2rem;
-    }
-    .agent-availability {
-      position: fixed;
-      bottom: 20px;
-      right: 20px;
-      z-index: 1000;
-    }
-    .available-agent {
-      border-left: 4px solid #2dce89;
-    }
-    .on-delivery-agent {
-      border-left: 4px solid #11cdef;
-    }
-  </style>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <link rel="apple-touch-icon" sizes="76x76" href="../assets/img/apple-icon.png">
+    <link rel="icon" type="image/png" href="../assets/img/favicon.png">
+    <title>Agents - Delivery & Billing</title>
+    <link href="https://fonts.googleapis.com/css?family=Inter:300,400,500,600,700,800" rel="stylesheet" />
+    <link href="../assets/css/nucleo-icons.css" rel="stylesheet" />
+    <link href="../assets/css/nucleo-svg.css" rel="stylesheet" />
+    <script src="https://kit.fontawesome.com/42d5adcbca.js" crossorigin="anonymous"></script>
+    <link id="pagestyle" href="../assets/css/soft-ui-dashboard.css?v=1.1.0" rel="stylesheet" />
 </head>
 <body class="g-sidenav-show bg-gray-100">
-  <div class="container-fluid">
-    <div class="row">
-      <div class="col-md-2">
-        <?php include 'partials/sidebar.php'; ?>
-      </div>
-      <div class="col-md-10">
-        <main class="main-content position-relative max-height-vh-100 h-100 border-radius-lg">
-          <!-- Navbar -->
-          <?php include 'partials/navbar.php'; ?>
-          <!-- End Navbar -->
-          <div class="container-fluid py-4">
-            <?php if ($error): ?>
-              <div class="alert alert-danger">
-                <?php echo htmlspecialchars($error); ?>
-              </div>
-            <?php endif; ?>
-            
-            <!-- Agent Summary Cards -->
-            <div class="row mb-4">
-              <div class="col-xl-3 col-sm-6 mb-xl-0 mb-4">
-                <div class="card">
-                  <div class="card-body p-3">
-                    <div class="row">
-                      <div class="col-8">
-                        <div class="numbers">
-                          <p class="text-sm mb-0 text-capitalize font-weight-bold">Total Agents</p>
-                          <h5 class="font-weight-bolder mb-0">
-                            <?php echo count($agents); ?>
-                          </h5>
-                        </div>
-                      </div>
-                      <div class="col-4 text-end">
-                        <div class="icon icon-shape bg-gradient-primary shadow text-center border-radius-md">
-                          <i class="fas fa-users text-lg opacity-10" aria-hidden="true"></i>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div class="col-xl-3 col-sm-6 mb-xl-0 mb-4">
-                <div class="card">
-                  <div class="card-body p-3">
-                    <div class="row">
-                      <div class="col-8">
-                        <div class="numbers">
-                          <p class="text-sm mb-0 text-capitalize font-weight-bold">Available Agents</p>
-                          <h5 class="font-weight-bolder mb-0">
-                            <?php echo $activeAgents; ?>
-                            <span class="text-success text-sm font-weight-bolder">(<?php echo round(($activeAgents/max(1, count($agents)))*100); ?>%)</span>
-                          </h5>
-                        </div>
-                      </div>
-                      <div class="col-4 text-end">
-                        <div class="icon icon-shape bg-gradient-success shadow text-center border-radius-md">
-                          <i class="fas fa-user-check text-lg opacity-10" aria-hidden="true"></i>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div class="col-xl-3 col-sm-6 mb-xl-0 mb-4">
-                <div class="card">
-                  <div class="card-body p-3">
-                    <div class="row">
-                      <div class="col-8">
-                        <div class="numbers">
-                          <p class="text-sm mb-0 text-capitalize font-weight-bold">Avg. Rating</p>
-                          <h5 class="font-weight-bolder mb-0">
-                            <?php 
-                              $avgRating = array_reduce($agents, function($carry, $agent) {
-                                return $carry + $agent['data'][4]['value'];
-                              }, 0) / max(1, count($agents));
-                              echo number_format($avgRating, 1);
-                            ?>
-                            <span class="stars"><?php echo str_repeat('★', floor($avgRating)) . str_repeat('☆', ceil(5 - $avgRating)); ?></span>
-                          </h5>
-                        </div>
-                      </div>
-                      <div class="col-4 text-end">
-                        <div class="icon icon-shape bg-gradient-warning shadow text-center border-radius-md">
-                          <i class="fas fa-star text-lg opacity-10" aria-hidden="true"></i>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-2">
+                <?php include 'partials/sidebar.php'; ?>
             </div>
-            
-            <div class="row">
-              <div class="col-12">
-                <?php
-                include 'partials/table.php';
-                renderTable(
-                    'Delivery Agents', 
-                    $agent_headers, 
-                    $agents, 
-                    $agent_actions, 
-                    $add_button_label, 
-                    $form_fields, 
-                    $form_action
-                );
-                ?>
-              </div>
+            <div class="col-md-10">
+                <main class="main-content position-relative max-height-vh-100 h-100 border-radius-lg">
+                    <?php include 'partials/navbar.php'; ?>
+                    <div class="container-fluid py-4">
+                        <div class="row">
+                            <div class="col-12">
+                                <!-- Success/Error Messages -->
+                                <?php if (isset($_SESSION['success'])): ?>
+                                    <div class="alert alert-success text-white">
+                                        <?php echo htmlspecialchars($_SESSION['success']); unset($_SESSION['success']); ?>
+                                    </div>
+                                <?php endif; ?>
+                                <?php if (isset($_SESSION['error'])): ?>
+                                    <div class="alert alert-danger text-white">
+                                        <?php echo htmlspecialchars($_SESSION['error']); unset($_SESSION['error']); ?>
+                                    </div>
+                                <?php endif; ?>
+                                <!-- Agents Table -->
+                                <?php
+                                include 'partials/table.php';
+                                renderTable($title, $headers, $rows, $actions, $add_button_label, $form_fields, $form_action, $form_hidden_fields);
+                                ?>
+                            </div>
+                        </div>
+                    </div>
+                </main>
             </div>
-          </div>
-        </main>
-      </div>
+        </div>
     </div>
-  </div>
 
-  <!-- Available Agents Notification -->
-  <div class="agent-availability">
-    <div class="alert alert-info alert-dismissible fade show" role="alert">
-      <span class="alert-icon"><i class="fas fa-info-circle"></i></span>
-      <span class="alert-text">
-        <strong><?php echo $activeAgents; ?> agents</strong> available for deliveries
-      </span>
-      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close">
-        <span aria-hidden="true">&times;</span>
-      </button>
+    <!-- Edit Agent Modal -->
+    <div class="modal fade" id="editAgentModal" tabindex="-1" aria-labelledby="editAgentModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="editAgentModalLabel">Edit Agent</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form action="/thenuka-stores/backend/controllers/AgentController.php?action=update" method="POST">
+                    <div class="modal-body">
+                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                        <input type="hidden" name="id" id="edit_id">
+                        <div class="mb-3">
+                            <label for="edit_first_name" class="form-label">First Name</label>
+                            <input type="text" class="form-control" id="edit_first_name" name="first_name" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="edit_last_name" class="form-label">Last Name</label>
+                            <input type="text" class="form-control" id="edit_last_name" name="last_name" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="edit_email" class="form-label">Email</label>
+                            <input type="email" class="form-control" id="edit_email" name="email" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="edit_phone" class="form-label">Phone</label>
+                            <input type="text" class="form-control" id="edit_phone" name="phone">
+                        </div>
+                        <div class="mb-3">
+                            <label for="edit_region" class="form-label">Region</label>
+                            <input type="text" class="form-control" id="edit_region" name="region">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        <button type="submit" class="btn btn-primary">Update Agent</button>
+                    </div>
+                </form>
+            </div>
+        </div>
     </div>
-  </div>
 
-  <!-- Core JS Files -->
-  <script src="../assets/js/core/popper.min.js"></script>
-  <script src="../assets/js/core/bootstrap.min.js"></script>
-  <script src="../assets/js/plugins/perfect-scrollbar.min.js"></script>
-  <script src="../assets/js/plugins/smooth-scrollbar.min.js"></script>
-  <script src="../assets/js/soft-ui-dashboard.min.js?v=1.1.0"></script>
-  
-  <script>
-    // Agent-specific JavaScript
-    $(document).ready(function() {
-      // Enable tooltips for action icons
-      $('[data-toggle="tooltip"]').tooltip();
-      
-      // Highlight available agents
-      $('tr').each(function() {
-        const statusBadge = $(this).find('.badge');
-        if (statusBadge.text() === 'Available') {
-          $(this).addClass('available-agent');
-        } else if (statusBadge.text() === 'On Delivery') {
-          $(this).addClass('on-delivery-agent');
+    <!-- Core JS Files -->
+    <script src="../assets/js/core/popper.min.js"></script>
+    <script src="../assets/js/core/bootstrap.min.js"></script>
+    <script src="../assets/js/plugins/perfect-scrollbar.min.js"></script>
+    <script src="../assets/js/plugins/smooth-scrollbar.min.js"></script>
+    <script src="../assets/js/soft-ui-dashboard.min.js?v=1.1.0"></script>
+    <script>
+        // Populate edit modal with agent data
+        function populateEditModal(agent) {
+            document.getElementById('edit_id').value = agent.id;
+            document.getElementById('edit_first_name').value = agent.first_name;
+            document.getElementById('edit_last_name').value = agent.last_name;
+            document.getElementById('edit_email').value = agent.email;
+            document.getElementById('edit_phone').value = agent.phone || '';
+            document.getElementById('edit_region').value = agent.region || '';
         }
-      });
-      
-      // Vehicle type specific fields
-      $('#vehicle_type').change(function() {
-        const vehicleType = $(this).val();
-        if (vehicleType === 'Motorcycle' || vehicleType === 'Bicycle') {
-          $('#license_number').closest('.mb-3').hide();
-        } else {
-          $('#license_number').closest('.mb-3').show();
+
+        // Initialize edit modal on click
+        document.querySelectorAll('a[data-action="edit"]').forEach(link => {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+                const agentId = parseInt(this.getAttribute('data-id'));
+                const agents = <?php echo json_encode($agents); ?>;
+                const agent = agents.find(a => a.id === agentId);
+                if (agent) {
+                    populateEditModal(agent);
+                    const modal = new bootstrap.Modal(document.getElementById('editAgentModal'));
+                    modal.show();
+                } else {
+                    console.error('Agent not found for ID:', agentId);
+                }
+            });
+        });
+
+        // Confirm delete action
+        document.querySelectorAll('a[data-action="delete"]').forEach(link => {
+            link.addEventListener('click', function(e) {
+                if (!confirm('Are you sure you want to delete this agent?')) {
+                    e.preventDefault();
+                }
+            });
+        });
+
+        // Initialize tooltips for action buttons
+        document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(element => {
+            new bootstrap.Tooltip(element);
+        });
+
+        // Initialize scrollbar for Windows
+        var win = navigator.platform.indexOf('Win') > -1;
+        if (win && document.querySelector('#sidenav-scrollbar')) {
+            var options = { damping: '0.5' };
+            Scrollbar.init(document.querySelector('#sidenav-scrollbar'), options);
         }
-      }).trigger('change');
-    });
-  </script>
+    </script>
 </body>
 </html>
