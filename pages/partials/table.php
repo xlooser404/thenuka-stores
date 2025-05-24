@@ -36,6 +36,14 @@ function renderTable($title, $headers, $rows, $actions = [], $add_button_label =
                            id="<?php echo htmlspecialchars($name); ?>" 
                            name="<?php echo htmlspecialchars($name); ?>" 
                            <?php echo isset($field['required']) && $field['required'] ? 'required' : ''; ?>>
+                  <?php elseif ($field['type'] === 'number'): ?>
+                    <input type="number" 
+                           class="form-control" 
+                           id="<?php echo htmlspecialchars($name); ?>" 
+                           name="<?php echo htmlspecialchars($name); ?>" 
+                           <?php echo isset($field['step']) ? 'step="' . htmlspecialchars($field['step']) . '"' : ''; ?>
+                           <?php echo isset($field['required']) && $field['required'] ? 'required' : ''; ?>
+                           min="0">
                   <?php elseif ($field['type'] === 'textarea'): ?>
                     <textarea class="form-control" 
                               id="<?php echo htmlspecialchars($name); ?>" 

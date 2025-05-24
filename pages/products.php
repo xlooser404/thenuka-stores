@@ -1,138 +1,81 @@
-<?php include 'partials/header.html'; ?>
-<?php include 'partials/sidebar.php'; ?>
-<?php include 'partials/navbar.php'; ?>
-
-
 <?php
-require_once 'config/database.php'; // Database configuration
+session_start();
+error_log("products.php - Session ID: " . session_id());
+error_log("products.php - Session data: " . print_r($_SESSION, true));
+error_log("products.php - CSRF token: " . ($_SESSION['csrf_token'] ?? 'Not set'));
 
-// Initialize variables
-$products = [];
-$error = null;
-
-try {
-    // Database connection
-    $db = new mysqli('localhost', 'username', 'password', 'delivery_billing');
-    if ($db->connect_error) {
-        throw new Exception("Connection failed: " . $db->connect_error);
-    }
-
-    // Fetch products with prepared statement
-    $stmt = $db->prepare("SELECT 
-                            p.id, 
-                            p.product_name, 
-                            p.sku, 
-                            c.category_name,
-                            p.price, 
-                            p.stock_quantity,
-                            p.status,
-                            p.last_restocked
-                          FROM products p
-                          JOIN categories c ON p.category_id = c.id");
-    $stmt->execute();
-    $result = $stmt->get_result();
-
-    while ($row = $result->fetch_assoc()) {
-        $products[] = [
-            'data' => [
-                [
-                    'type' => 'image',
-                    'value' => '../assets/img/products/' . htmlspecialchars($row['sku']) . '.jpg',
-                    'label' => htmlspecialchars($row['product_name']),
-                    'subtext' => 'SKU: ' . htmlspecialchars($row['sku'])
-                ],
-                [
-                    'value' => htmlspecialchars($row['category_name']),
-                    'text_class' => 'text-sm'
-                ],
-                [
-                    'value' => '$' . number_format($row['price'], 2),
-                    'text_class' => 'font-weight-bold'
-                ],
-                [
-                    'type' => 'progress',
-                    'value' => min(100, ($row['stock_quantity'] / 50) * 100), // Assuming 50 is max stock
-                    'progress_class' => $row['stock_quantity'] > 10 ? 'bg-gradient-success' : 'bg-gradient-danger',
-                    'text_class' => 'text-center'
-                ],
-                [
-                    'type' => 'badge',
-                    'value' => htmlspecialchars($row['status']),
-                    'badge_class' => $row['status'] === 'Active' ? 'bg-gradient-success' : 'bg-gradient-secondary'
-                ],
-                [
-                    'value' => $row['last_restocked'] ? date('M d, Y', strtotime($row['last_restocked'])) : 'Never',
-                    'text_class' => 'text-xs text-secondary'
-                ]
-            ],
-            'actions' => [
-                'view' => 'product_details.php?id=' . urlencode($row['id']),
-                'edit' => 'edit_product.php?id=' . urlencode($row['id']),
-                'restock' => 'restock_product.php?id=' . urlencode($row['id'])
-            ]
-        ];
-    }
-    $stmt->close();
-    $db->close();
-} catch (Exception $e) {
-    $error = "Error loading products: " . $e->getMessage();
+// Restrict access to admin role
+if (!isset($_SESSION['user'])) {
+    error_log("products.php - No user session.");
+    $_SESSION['error'] = 'Unauthorized access: No user session.';
+    header('Location: /thenuka-stores/pages/login.php?redirect=' . urlencode('/thenuka-stores/pages/products.php'));
+    exit;
+}
+if ($_SESSION['user']['role'] !== 'admin') {
+    error_log("products.php - User role: " . $_SESSION['user']['role']);
+    $_SESSION['error'] = 'Unauthorized access: Not an admin.';
+    header('Location: /thenuka-stores/pages/login.php?redirect=' . urlencode('/thenuka-stores/pages/products.php'));
+    exit;
 }
 
-// Table configuration
-$product_headers = [
-    ['label' => 'Product'],
-    ['label' => 'Category'],
-    ['label' => 'Price', 'class' => 'text-center'],
-    ['label' => 'Stock Level', 'class' => 'text-center'],
-    ['label' => 'Status', 'class' => 'text-center'],
-    ['label' => 'Last Restock', 'class' => 'text-center']
-];
+// Generate CSRF token once per session
+if (!isset($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    error_log("products.php - Generated new CSRF token: " . $_SESSION['csrf_token']);
+}
 
-$product_actions = [
-    'view' => '<i class="fas fa-eye" data-toggle="tooltip" title="View"></i>',
-    'edit' => '<i class="fas fa-edit" data-toggle="tooltip" title="Edit"></i>',
-    'restock' => '<i class="fas fa-boxes" data-toggle="tooltip" title="Restock"></i>'
-];
+// Log form hidden fields
+error_log("products.php - Form hidden fields: " . print_r(['csrf_token' => $_SESSION['csrf_token']], true));
 
-$add_button_label = 'Add Product';
-$form_fields = [
-    'product_name' => [
-        'label' => 'Product Name',
-        'type' => 'text',
-        'placeholder' => 'Enter product name'
-    ],
-    'sku' => [
-        'label' => 'SKU',
-        'type' => 'text',
-        'placeholder' => 'PROD-001'
-    ],
-    'category_id' => [
-        'label' => 'Category',
-        'type' => 'select',
-        'options_query' => 'SELECT id, category_name FROM categories'
-    ],
-    'price' => [
-        'label' => 'Price',
-        'type' => 'number',
-        'step' => '0.01',
-        'min' => '0'
-    ],
-    'initial_stock' => [
-        'label' => 'Initial Stock',
-        'type' => 'number',
-        'min' => '0'
-    ],
-    'status' => [
-        'label' => 'Status',
-        'type' => 'select',
-        'options' => [
-            'Active' => 'Active',
-            'Inactive' => 'Inactive',
-            'Discontinued' => 'Discontinued'
+// Include ProductController
+require_once __DIR__ . '/../backend/controllers/ProductController.php';
+$controller = new ProductController();
+$products = $controller->getAllProducts();
+
+// Prepare data for table.php
+$title = "Products Table";
+$headers = [
+    ['label' => 'ID', 'class' => ''],
+    ['label' => 'Name', 'class' => ''],
+    ['label' => 'Description', 'class' => ''],
+    ['label' => 'Price', 'class' => ''],
+    ['label' => 'Stock', 'class' => ''],
+    ['label' => 'Category', 'class' => ''],
+    ['label' => 'Actions', 'class' => 'text-center']
+];
+$rows = [];
+foreach ($products as $product) {
+    $rows[] = [
+        'data' => [
+            ['value' => htmlspecialchars($product['id']), 'text_class' => 'text-sm'],
+            ['value' => htmlspecialchars($product['name']), 'text_class' => 'text-sm'],
+            ['value' => htmlspecialchars($product['description'] ?? 'N/A'), 'text_class' => 'text-sm'],
+            ['value' => htmlspecialchars(number_format($product['price'], 2)), 'text_class' => 'text-sm'],
+            ['value' => htmlspecialchars($product['stock'] ?? 0), 'text_class' => 'text-sm'],
+            ['value' => htmlspecialchars($product['category'] ?? 'N/A'), 'text_class' => 'text-sm']
+        ],
+        'actions' => [
+            'edit' => "javascript:void(0);",
+            'delete' => "/thenuka-stores/backend/controllers/ProductController.php?action=delete&id=" . $product['id']
         ]
-    ]
+    ];
+}
+$actions = [
+    'edit' => 'Edit',
+    'delete' => 'Delete'
 ];
-$form_action = 'add_product.php';
+$add_button_label = "Add Product";
+$form_fields = [
+    'name' => ['label' => 'Name', 'type' => 'text'],
+    'description' => ['label' => 'Description', 'type' => 'text'],
+    'price' => ['label' => 'Price', 'type' => 'number', 'step' => '0.01'],
+    'stock' => ['label' => 'Stock', 'type' => 'number'],
+    'category' => ['label' => 'Category', 'type' => 'text']
+];
+$form_action = "/thenuka-stores/backend/controllers/ProductController.php?action=add";
+$form_hidden_fields = [
+    'csrf_token' => $_SESSION['csrf_token']
+];
 ?>
 
 <!DOCTYPE html>
@@ -142,24 +85,12 @@ $form_action = 'add_product.php';
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
   <link rel="apple-touch-icon" sizes="76x76" href="../assets/img/apple-icon.png">
   <link rel="icon" type="image/png" href="../assets/img/favicon.png">
-  <title>Products Management - Delivery & Billing</title>
-  <!-- Fonts and icons -->
+  <title>Products - Delivery & Billing</title>
   <link href="https://fonts.googleapis.com/css?family=Inter:300,400,500,600,700,800" rel="stylesheet" />
-  <!-- Nucleo Icons -->
   <link href="../assets/css/nucleo-icons.css" rel="stylesheet" />
   <link href="../assets/css/nucleo-svg.css" rel="stylesheet" />
-  <!-- Font Awesome Icons -->
   <script src="https://kit.fontawesome.com/42d5adcbca.js" crossorigin="anonymous"></script>
-  <!-- CSS Files -->
   <link id="pagestyle" href="../assets/css/soft-ui-dashboard.css?v=1.1.0" rel="stylesheet" />
-  <!-- Additional CSS for products -->
-  <style>
-    .product-image {
-        max-width: 50px;
-        max-height: 50px;
-        object-fit: cover;
-    }
-  </style>
 </head>
 <body class="g-sidenav-show bg-gray-100">
   <div class="container-fluid">
@@ -169,29 +100,25 @@ $form_action = 'add_product.php';
       </div>
       <div class="col-md-10">
         <main class="main-content position-relative max-height-vh-100 h-100 border-radius-lg">
-          <!-- Navbar -->
           <?php include 'partials/navbar.php'; ?>
-          <!-- End Navbar -->
           <div class="container-fluid py-4">
-            <?php if ($error): ?>
-              <div class="alert alert-danger">
-                <?php echo htmlspecialchars($error); ?>
-              </div>
-            <?php endif; ?>
-            
             <div class="row">
               <div class="col-12">
+                <!-- Success/Error Messages -->
+                <?php if (isset($_SESSION['success'])): ?>
+                  <div class="alert alert-success text-white">
+                    <?php echo htmlspecialchars($_SESSION['success']); unset($_SESSION['success']); ?>
+                  </div>
+                <?php endif; ?>
+                <?php if (isset($_SESSION['error'])): ?>
+                  <div class="alert alert-danger text-white">
+                    <?php echo htmlspecialchars($_SESSION['error']); unset($_SESSION['error']); ?>
+                  </div>
+                <?php endif; ?>
+                <!-- Product Table -->
                 <?php
                 include 'partials/table.php';
-                renderTable(
-                    'Products Inventory', 
-                    $product_headers, 
-                    $products, 
-                    $product_actions, 
-                    $add_button_label, 
-                    $form_fields, 
-                    $form_action
-                );
+                renderTable($title, $headers, $rows, $actions, $add_button_label, $form_fields, $form_action, $form_hidden_fields);
                 ?>
               </div>
             </div>
@@ -200,33 +127,101 @@ $form_action = 'add_product.php';
       </div>
     </div>
   </div>
+
+  <!-- Edit Product Modal -->
+  <div class="modal fade" id="editProductModal" tabindex="-1" aria-labelledby="editProductModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="editProductModalLabel">Edit Product</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <form action="/thenuka-stores/backend/controllers/ProductController.php?action=update" method="POST">
+          <div class="modal-body">
+            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+            <input type="hidden" name="id" id="edit_id">
+            <div class="mb-3">
+              <label for="edit_name" class="form-label">Name</label>
+              <input type="text" class="form-control" id="edit_name" name="name" required>
+            </div>
+            <div class="mb-3">
+              <label for="edit_description" class="form-label">Description</label>
+              <textarea class="form-control" id="edit_description" name="description" rows="3"></textarea>
+            </div>
+            <div class="mb-3">
+              <label for="edit_price" class="form-label">Price</label>
+              <input type="number" step="0.01" class="form-control" id="edit_price" name="price" required>
+            </div>
+            <div class="mb-3">
+              <label for="edit_stock" class="form-label">Stock</label>
+              <input type="number" class="form-control" id="edit_stock" name="stock" required>
+            </div>
+            <div class="mb-3">
+              <label for="edit_category" class="form-label">Category</label>
+              <input type="text" class="form-control" id="edit_category" name="category">
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            <button type="submit" class="btn btn-primary">Update Product</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
   <!-- Core JS Files -->
   <script src="../assets/js/core/popper.min.js"></script>
   <script src="../assets/js/core/bootstrap.min.js"></script>
   <script src="../assets/js/plugins/perfect-scrollbar.min.js"></script>
   <script src="../assets/js/plugins/smooth-scrollbar.min.js"></script>
   <script src="../assets/js/soft-ui-dashboard.min.js?v=1.1.0"></script>
-  
   <script>
-    // Product-specific JavaScript
-    $(document).ready(function() {
-      // Enable tooltips for action icons
-      $('[data-toggle="tooltip"]').tooltip();
-      
-      // Dynamic category loading for form
-      <?php if (isset($form_fields['category_id']['options_query'])): ?>
-        $.get('api/get_categories.php', function(data) {
-          var select = $('#category_id');
-          select.empty();
-          $.each(data, function(key, value) {
-            select.append($('<option>', {
-              value: key,
-              text: value
-            }));
-          });
-        }, 'json');
-      <?php endif; ?>
+    // Populate edit modal with product data
+    function populateEditModal(product) {
+      document.getElementById('edit_id').value = product.id;
+      document.getElementById('edit_name').value = product.name;
+      document.getElementById('edit_description').value = product.description || '';
+      document.getElementById('edit_price').value = product.price;
+      document.getElementById('edit_stock').value = product.stock;
+      document.getElementById('edit_category').value = product.category || '';
+    }
+
+    // Initialize edit modal on click
+    document.querySelectorAll('a[data-original-title="Edit"]').forEach(link => {
+      link.addEventListener('click', function(e) {
+        e.preventDefault();
+        const product = <?php echo json_encode($products); ?>.find(p => p.id === parseInt(this.getAttribute('data-id')));
+        if (product) {
+          populateEditModal(product);
+          const modal = new bootstrap.Modal(document.getElementById('editProductModal'));
+          modal.show();
+        }
+      });
     });
+
+    // Add data-id to edit links
+    document.querySelectorAll('a[data-original-title="Edit"]').forEach(link => {
+      const row = link.closest('tr');
+      const idCell = row.querySelector('td:first-child span').textContent;
+      link.setAttribute('data-id', idCell);
+    });
+
+    // Confirm delete action
+    document.querySelectorAll('a[data-original-title="Delete"]').forEach(link => {
+      link.addEventListener('click', function(e) {
+        if (!confirm('Are you sure you want to delete this product?')) {
+          e.preventDefault();
+        }
+      });
+    });
+
+    // Initialize scrollbar for Windows
+    var win = navigator.platform.indexOf('Win') > -1;
+    if (win && document.querySelector('#sidenav-scrollbar')) {
+      var options = { damping: '0.5' };
+      Scrollbar.init(document.querySelector('#sidenav-scrollbar'), options);
+    }
   </script>
 </body>
 </html>
