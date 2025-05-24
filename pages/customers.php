@@ -1,28 +1,31 @@
 <?php
 session_start();
-error_log("Customers.php - Session ID: " . session_id());
-error_log("Customers.php - Session data: " . print_r($_SESSION, true));
-error_log("Customers.php - CSRF token: " . ($_SESSION['csrf_token'] ?? 'Not set'));
+error_log("customers.php - Session ID: " . session_id());
+error_log("customers.php - Session data: " . print_r($_SESSION, true));
+error_log("customers.php - CSRF token: " . ($_SESSION['csrf_token'] ?? 'Not set'));
 
 // Restrict access to admin role
 if (!isset($_SESSION['user'])) {
-    error_log("Customers.php - No user session.");
+    error_log("customers.php - No user session.");
     $_SESSION['error'] = 'Unauthorized access: No user session.';
-    header('Location: ../../pages/login.php');
+    header('Location: /thenuka-stores/pages/login.php?redirect=' . urlencode('/thenuka-stores/pages/customers.php'));
     exit;
 }
 if ($_SESSION['user']['role'] !== 'admin') {
-    error_log("Customers.php - User role: " . $_SESSION['user']['role']);
+    error_log("customers.php - User role: " . $_SESSION['user']['role']);
     $_SESSION['error'] = 'Unauthorized access: Not an admin.';
-    header('Location: ../../pages/login.php');
+    header('Location: /thenuka-stores/pages/login.php?redirect=' . urlencode('/thenuka-stores/pages/customers.php'));
     exit;
 }
 
-// Generate CSRF token
+// Generate CSRF token once per session
 if (!isset($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-    error_log("Customers.php - Generated new CSRF token: " . $_SESSION['csrf_token']);
+    error_log("customers.php - Generated new CSRF token: " . $_SESSION['csrf_token']);
 }
+
+// Log form hidden fields
+error_log("customers.php - Form hidden fields: " . print_r(['csrf_token' => $_SESSION['csrf_token']], true));
 
 // Include CustomerController
 require_once __DIR__ . '/../backend/controllers/CustomerController.php';
@@ -53,7 +56,7 @@ foreach ($customers as $customer) {
         ],
         'actions' => [
             'edit' => "javascript:void(0);",
-            'delete' => "../backend/controllers/CustomerController.php?action=delete&id=" . $customer['id']
+            'delete' => "/thenuka-stores/backend/controllers/CustomerController.php?action=delete&id=" . $customer['id']
         ]
     ];
 }
@@ -69,7 +72,7 @@ $form_fields = [
     'phone' => ['label' => 'Phone', 'type' => 'text'],
     'address' => ['label' => 'Address', 'type' => 'text']
 ];
-$form_action = "../backend/controllers/CustomerController.php?action=add";
+$form_action = "/thenuka-stores/backend/controllers/CustomerController.php?action=add";
 $form_hidden_fields = [
     'csrf_token' => $_SESSION['csrf_token']
 ];
@@ -112,6 +115,38 @@ $form_hidden_fields = [
                     <?php echo htmlspecialchars($_SESSION['error']); unset($_SESSION['error']); ?>
                   </div>
                 <?php endif; ?>
+                <!-- Fallback Add Customer Form (Temporary for Testing) -->
+                <div class="card mb-4">
+                  <div class="card-header">
+                    <h5>Test Add Customer</h5>
+                  </div>
+                  <div class="card-body">
+                    <form action="/thenuka-stores/backend/controllers/CustomerController.php?action=add" method="POST">
+                      <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                      <div class="mb-3">
+                        <label for="first_name" class="form-label">First Name</label>
+                        <input type="text" class="form-control" id="first_name" name="first_name" required>
+                      </div>
+                      <div class="mb-3">
+                        <label for="last_name" class="form-label">Last Name</label>
+                        <input type="text" class="form-control" id="last_name" name="last_name" required>
+                      </div>
+                      <div class="mb-3">
+                        <label for="email" class="form-label">Email</label>
+                        <input type="email" class="form-control" id="email" name="email" required>
+                      </div>
+                      <div class="mb-3">
+                        <label for="phone" class="form-label">Phone</label>
+                        <input type="text" class="form-control" id="phone" name="phone">
+                      </div>
+                      <div class="mb-3">
+                        <label for="address" class="form-label">Address</label>
+                        <textarea class="form-control" id="address" name="address" rows="3"></textarea>
+                      </div>
+                      <button type="submit" class="btn btn-primary">Add Customer</button>
+                    </form>
+                  </div>
+                </div>
                 <!-- Customer Table -->
                 <?php
                 include 'partials/table.php';
@@ -133,7 +168,7 @@ $form_hidden_fields = [
           <h5 class="modal-title" id="editCustomerModalLabel">Edit Customer</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
-        <form action="../backend/controllers/CustomerController.php?action=update" method="POST">
+        <form action="/thenuka-stores/backend/controllers/CustomerController.php?action=update" method="POST">
           <div class="modal-body">
             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
             <input type="hidden" name="id" id="edit_id">
