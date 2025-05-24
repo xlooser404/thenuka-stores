@@ -12,7 +12,7 @@ function renderTable($title, $headers, $rows, $actions = [], $add_button_label =
       </button>
     </div>
 
-    <!-- Modal -->
+    <!-- Add Modal -->
     <div class="modal fade" id="addModal" tabindex="-1" aria-labelledby="addModalLabel" aria-hidden="true">
       <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -30,20 +30,14 @@ function renderTable($title, $headers, $rows, $actions = [], $add_button_label =
                   <label for="<?php echo htmlspecialchars($name); ?>" class="form-label">
                     <?php echo htmlspecialchars($field['label']); ?>
                   </label>
-                  <?php if ($field['type'] === 'text' || $field['type'] === 'email'): ?>
+                  <?php if ($field['type'] === 'text' || $field['type'] === 'email' || $field['type'] === 'number'): ?>
                     <input type="<?php echo htmlspecialchars($field['type']); ?>" 
-                           class="form-control" 
-                           id="<?php echo htmlspecialchars($name); ?>" 
-                           name="<?php echo htmlspecialchars($name); ?>" 
-                           <?php echo isset($field['required']) && $field['required'] ? 'required' : ''; ?>>
-                  <?php elseif ($field['type'] === 'number'): ?>
-                    <input type="number" 
                            class="form-control" 
                            id="<?php echo htmlspecialchars($name); ?>" 
                            name="<?php echo htmlspecialchars($name); ?>" 
                            <?php echo isset($field['step']) ? 'step="' . htmlspecialchars($field['step']) . '"' : ''; ?>
                            <?php echo isset($field['required']) && $field['required'] ? 'required' : ''; ?>
-                           min="0">
+                           <?php echo $field['type'] === 'number' ? 'min="0"' : ''; ?>>
                   <?php elseif ($field['type'] === 'textarea'): ?>
                     <textarea class="form-control" 
                               id="<?php echo htmlspecialchars($name); ?>" 
@@ -132,7 +126,12 @@ function renderTable($title, $headers, $rows, $actions = [], $add_button_label =
                 <?php if (!empty($actions)): ?>
                   <td class="align-middle">
                     <?php foreach ($actions as $action_key => $action_label): ?>
-                      <a href="<?php echo isset($row['actions'][$action_key]) ? htmlspecialchars($row['actions'][$action_key]) : '#'; ?>" class="text-secondary font-weight-bold text-xs" data-toggle="tooltip" data-original-title="<?php echo htmlspecialchars($action_label); ?>">
+                      <a href="<?php echo isset($row['actions'][$action_key]) ? htmlspecialchars($row['actions'][$action_key]) : '#'; ?>" 
+                         class="btn btn-sm <?php echo $action_key === 'edit' ? 'btn-warning' : 'btn-danger'; ?> me-1"
+                         data-bs-toggle="tooltip" 
+                         data-bs-title="<?php echo htmlspecialchars($action_label); ?>"
+                         data-action="<?php echo htmlspecialchars($action_key); ?>"
+                         data-id="<?php echo htmlspecialchars($row['data'][0]['value']); ?>">
                         <?php echo htmlspecialchars($action_label); ?>
                       </a>
                     <?php endforeach; ?>

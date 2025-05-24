@@ -6,22 +6,22 @@ error_log("products.php - CSRF token: " . ($_SESSION['csrf_token'] ?? 'Not set')
 
 // Restrict access to admin role
 if (!isset($_SESSION['user'])) {
-    error_log("products.php - No user session.");
-    $_SESSION['error'] = 'Unauthorized access: No user session.';
-    header('Location: /thenuka-stores/pages/login.php?redirect=' . urlencode('/thenuka-stores/pages/products.php'));
-    exit;
+  error_log("products.php - No user session.");
+  $_SESSION['error'] = 'Unauthorized access: No user session.';
+  header('Location: /thenuka-stores/pages/login.php?redirect=' . urlencode('/thenuka-stores/pages/products.php'));
+  exit;
 }
 if ($_SESSION['user']['role'] !== 'admin') {
-    error_log("products.php - User role: " . $_SESSION['user']['role']);
-    $_SESSION['error'] = 'Unauthorized access: Not an admin.';
-    header('Location: /thenuka-stores/pages/login.php?redirect=' . urlencode('/thenuka-stores/pages/products.php'));
-    exit;
+  error_log("products.php - User role: " . $_SESSION['user']['role']);
+  $_SESSION['error'] = 'Unauthorized access: Not an admin.';
+  header('Location: /thenuka-stores/pages/login.php?redirect=' . urlencode('/thenuka-stores/pages/products.php'));
+  exit;
 }
 
 // Generate CSRF token once per session
 if (!isset($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-    error_log("products.php - Generated new CSRF token: " . $_SESSION['csrf_token']);
+  $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+  error_log("products.php - Generated new CSRF token: " . $_SESSION['csrf_token']);
 }
 
 // Log form hidden fields
@@ -35,51 +35,52 @@ $products = $controller->getAllProducts();
 // Prepare data for table.php
 $title = "Products Table";
 $headers = [
-    ['label' => 'ID', 'class' => ''],
-    ['label' => 'Name', 'class' => ''],
-    ['label' => 'Description', 'class' => ''],
-    ['label' => 'Price', 'class' => ''],
-    ['label' => 'Stock', 'class' => ''],
-    ['label' => 'Category', 'class' => ''],
-    ['label' => 'Actions', 'class' => 'text-center']
+  ['label' => 'ID', 'class' => ''],
+  ['label' => 'Name', 'class' => ''],
+  ['label' => 'Description', 'class' => ''],
+  ['label' => 'Price', 'class' => ''],
+  ['label' => 'Stock', 'class' => ''],
+  ['label' => 'Category', 'class' => ''],
+  ['label' => 'Actions', 'class' => 'text-center']
 ];
 $rows = [];
 foreach ($products as $product) {
-    $rows[] = [
-        'data' => [
-            ['value' => htmlspecialchars($product['id']), 'text_class' => 'text-sm'],
-            ['value' => htmlspecialchars($product['name']), 'text_class' => 'text-sm'],
-            ['value' => htmlspecialchars($product['description'] ?? 'N/A'), 'text_class' => 'text-sm'],
-            ['value' => htmlspecialchars(number_format($product['price'], 2)), 'text_class' => 'text-sm'],
-            ['value' => htmlspecialchars($product['stock'] ?? 0), 'text_class' => 'text-sm'],
-            ['value' => htmlspecialchars($product['category'] ?? 'N/A'), 'text_class' => 'text-sm']
-        ],
-        'actions' => [
-            'edit' => "javascript:void(0);",
-            'delete' => "/thenuka-stores/backend/controllers/ProductController.php?action=delete&id=" . $product['id']
-        ]
-    ];
+  $rows[] = [
+    'data' => [
+      ['value' => htmlspecialchars($product['id']), 'text_class' => 'text-sm'],
+      ['value' => htmlspecialchars($product['name']), 'text_class' => 'text-sm'],
+      ['value' => htmlspecialchars($product['description'] ?? 'N/A'), 'text_class' => 'text-sm'],
+      ['value' => htmlspecialchars(number_format($product['price'], 2)), 'text_class' => 'text-sm'],
+      ['value' => htmlspecialchars($product['stock'] ?? 0), 'text_class' => 'text-sm'],
+      ['value' => htmlspecialchars($product['category'] ?? 'N/A'), 'text_class' => 'text-sm']
+    ],
+    'actions' => [
+      'edit' => "javascript:void(0);",
+      'delete' => "/thenuka-stores/backend/controllers/ProductController.php?action=delete&id=" . $product['id']
+    ]
+  ];
 }
 $actions = [
-    'edit' => 'Edit',
-    'delete' => 'Delete'
+  'edit' => 'Edit',
+  'delete' => 'Delete'
 ];
 $add_button_label = "Add Product";
 $form_fields = [
-    'name' => ['label' => 'Name', 'type' => 'text'],
-    'description' => ['label' => 'Description', 'type' => 'text'],
-    'price' => ['label' => 'Price', 'type' => 'number', 'step' => '0.01'],
-    'stock' => ['label' => 'Stock', 'type' => 'number'],
-    'category' => ['label' => 'Category', 'type' => 'text']
+  'name' => ['label' => 'Name', 'type' => 'text'],
+  'description' => ['label' => 'Description', 'type' => 'text'],
+  'price' => ['label' => 'Price', 'type' => 'number', 'step' => '0.01'],
+  'stock' => ['label' => 'Stock', 'type' => 'number'],
+  'category' => ['label' => 'Category', 'type' => 'text']
 ];
 $form_action = "/thenuka-stores/backend/controllers/ProductController.php?action=add";
 $form_hidden_fields = [
-    'csrf_token' => $_SESSION['csrf_token']
+  'csrf_token' => $_SESSION['csrf_token']
 ];
 ?>
 
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
@@ -92,6 +93,7 @@ $form_hidden_fields = [
   <script src="https://kit.fontawesome.com/42d5adcbca.js" crossorigin="anonymous"></script>
   <link id="pagestyle" href="../assets/css/soft-ui-dashboard.css?v=1.1.0" rel="stylesheet" />
 </head>
+
 <body class="g-sidenav-show bg-gray-100">
   <div class="container-fluid">
     <div class="row">
@@ -107,12 +109,14 @@ $form_hidden_fields = [
                 <!-- Success/Error Messages -->
                 <?php if (isset($_SESSION['success'])): ?>
                   <div class="alert alert-success text-white">
-                    <?php echo htmlspecialchars($_SESSION['success']); unset($_SESSION['success']); ?>
+                    <?php echo htmlspecialchars($_SESSION['success']);
+                    unset($_SESSION['success']); ?>
                   </div>
                 <?php endif; ?>
                 <?php if (isset($_SESSION['error'])): ?>
                   <div class="alert alert-danger text-white">
-                    <?php echo htmlspecialchars($_SESSION['error']); unset($_SESSION['error']); ?>
+                    <?php echo htmlspecialchars($_SESSION['error']);
+                    unset($_SESSION['error']); ?>
                   </div>
                 <?php endif; ?>
                 <!-- Product Table -->
@@ -188,27 +192,24 @@ $form_hidden_fields = [
     }
 
     // Initialize edit modal on click
-    document.querySelectorAll('a[data-original-title="Edit"]').forEach(link => {
+    document.querySelectorAll('a[data-action="edit"]').forEach(link => {
       link.addEventListener('click', function(e) {
         e.preventDefault();
-        const product = <?php echo json_encode($products); ?>.find(p => p.id === parseInt(this.getAttribute('data-id')));
+        const productId = parseInt(this.getAttribute('data-id'));
+        const products = <?php echo json_encode($products); ?>;
+        const product = products.find(p => p.id === productId);
         if (product) {
           populateEditModal(product);
           const modal = new bootstrap.Modal(document.getElementById('editProductModal'));
           modal.show();
+        } else {
+          console.error('Product not found for ID:', productId);
         }
       });
     });
 
-    // Add data-id to edit links
-    document.querySelectorAll('a[data-original-title="Edit"]').forEach(link => {
-      const row = link.closest('tr');
-      const idCell = row.querySelector('td:first-child span').textContent;
-      link.setAttribute('data-id', idCell);
-    });
-
     // Confirm delete action
-    document.querySelectorAll('a[data-original-title="Delete"]').forEach(link => {
+    document.querySelectorAll('a[data-action="delete"]').forEach(link => {
       link.addEventListener('click', function(e) {
         if (!confirm('Are you sure you want to delete this product?')) {
           e.preventDefault();
@@ -216,12 +217,20 @@ $form_hidden_fields = [
       });
     });
 
+    // Initialize tooltips for action buttons
+    document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(element => {
+      new bootstrap.Tooltip(element);
+    });
+
     // Initialize scrollbar for Windows
     var win = navigator.platform.indexOf('Win') > -1;
     if (win && document.querySelector('#sidenav-scrollbar')) {
-      var options = { damping: '0.5' };
+      var options = {
+        damping: '0.5'
+      };
       Scrollbar.init(document.querySelector('#sidenav-scrollbar'), options);
     }
   </script>
 </body>
+
 </html>
