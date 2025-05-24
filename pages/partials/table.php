@@ -1,15 +1,8 @@
 <?php
 /**
  * Reusable Table Component for Soft UI Dashboard
- * @param string $title Table title (e.g., "Customers Table")
- * @param array $headers Array of header names (e.g., ['Customer', 'Type', 'Status'])
- * @param array $rows Array of rows, each containing data for columns and optional actions
- * @param array $actions Array of action buttons (e.g., ['edit' => 'Edit', 'delete' => 'Delete'])
- * @param string $add_button_label Label for the Add button (e.g., "Add Customer")
- * @param array $form_fields Array of form fields for the modal (e.g., ['name' => ['label' => 'Name', 'type' => 'text']])
- * @param string $form_action URL to submit the form (e.g., "add_customer.php")
  */
-function renderTable($title, $headers, $rows, $actions = [], $add_button_label = '', $form_fields = [], $form_action = '') {
+function renderTable($title, $headers, $rows, $actions = [], $add_button_label = '', $form_fields = [], $form_action = '', $form_hidden_fields = []) {
 ?>
 <div class="container-fluid">
   <?php if ($add_button_label && $form_fields && $form_action): ?>
@@ -29,6 +22,9 @@ function renderTable($title, $headers, $rows, $actions = [], $add_button_label =
           </div>
           <form action="<?php echo htmlspecialchars($form_action); ?>" method="POST">
             <div class="modal-body">
+              <?php foreach ($form_hidden_fields as $name => $value): ?>
+                <input type="hidden" name="<?php echo htmlspecialchars($name); ?>" value="<?php echo htmlspecialchars($value); ?>">
+              <?php endforeach; ?>
               <?php foreach ($form_fields as $name => $field): ?>
                 <div class="mb-3">
                   <label for="<?php echo htmlspecialchars($name); ?>" class="form-label">
@@ -39,9 +35,18 @@ function renderTable($title, $headers, $rows, $actions = [], $add_button_label =
                            class="form-control" 
                            id="<?php echo htmlspecialchars($name); ?>" 
                            name="<?php echo htmlspecialchars($name); ?>" 
-                           required>
+                           <?php echo isset($field['required']) && $field['required'] ? 'required' : ''; ?>>
+                  <?php elseif ($field['type'] === 'textarea'): ?>
+                    <textarea class="form-control" 
+                              id="<?php echo htmlspecialchars($name); ?>" 
+                              name="<?php echo htmlspecialchars($name); ?>" 
+                              rows="3"
+                              <?php echo isset($field['required']) && $field['required'] ? 'required' : ''; ?>></textarea>
                   <?php elseif ($field['type'] === 'select'): ?>
-                    <select class="form-select" id="<?php echo htmlspecialchars($name); ?>" name="<?php echo htmlspecialchars($name); ?>" required>
+                    <select class="form-select" 
+                            id="<?php echo htmlspecialchars($name); ?>" 
+                            name="<?php echo htmlspecialchars($name); ?>" 
+                            <?php echo isset($field['required']) && $field['required'] ? 'required' : ''; ?>>
                       <?php foreach ($field['options'] as $value => $label): ?>
                         <option value="<?php echo htmlspecialchars($value); ?>">
                           <?php echo htmlspecialchars($label); ?>
