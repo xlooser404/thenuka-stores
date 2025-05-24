@@ -12,6 +12,18 @@
 
 * The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
 -->
+
+<?php
+session_start();
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
+if (!isset($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+?>
+
 <!DOCTYPE html>
 <html lang="en">
 
@@ -56,7 +68,20 @@
                   <p class="mb-0">Enter your details to register</p>
                 </div>
                 <div class="card-body">
+                  <!-- Error/Success message display -->
+                  <?php if (isset($_SESSION['error'])): ?>
+                    <div class="alert alert-danger text-white">
+                      <?php echo htmlspecialchars($_SESSION['error']); unset($_SESSION['error']); ?>
+                    </div>
+                  <?php endif; ?>
+                  <?php if (isset($_SESSION['success'])): ?>
+                    <div class="alert alert-success text-white">
+                      <?php echo htmlspecialchars($_SESSION['success']); unset($_SESSION['success']); ?>
+                    </div>
+                  <?php endif; ?>
                   <form role="form" method="POST" action="../backend/auth/register.php">
+                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+
                     <label>Name</label>
                     <div class="mb-3">
                       <input type="text" class="form-control" name="name" placeholder="Name" aria-label="Name" required>
@@ -74,7 +99,7 @@
                       <input type="password" class="form-control" name="confirm_password" placeholder="Confirm Password" aria-label="Confirm Password" required>
                     </div>
                     <div class="form-check form-check-info text-left">
-                      <input class="form-check-input" type="checkbox" value="" id="flexCheckDefault" checked required>
+                      <input class="form-check-input" type="checkbox" name="flexCheckDefault" id="flexCheckDefault" required>
                       <label class="form-check-label" for="flexCheckDefault">
                         I agree to the <a href="javascript:;" class="text-dark font-weight-bolder">Terms and Conditions</a>
                       </label>
