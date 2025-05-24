@@ -3,7 +3,7 @@ class Database {
     private $host = 'localhost';
     private $db_name = 'thenuka_db';
     private $username = 'root';
-    private $password = 'Bavi@2005@1234'; // Consider storing in a .env file
+    private $password = ''; // Consider storing in a .env file
     private $conn;
 
     public function connect() {
