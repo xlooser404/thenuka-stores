@@ -96,6 +96,25 @@ $current_page = basename($_SERVER['PHP_SELF']);
         </a>
       </li>
       <li class="nav-item">
+    <a class="nav-link <?php echo $current_page == 'sales.php' ? 'active' : ''; ?>" href="/thenuka-stores/pages/sales.php">
+        <div class="icon icon-shape icon-sm shadow border-radius-md bg-white text-center me-2 d-flex align-items-center justify-content-center">
+            <svg width="12px" height="12px" viewBox="0 0 40 40" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+                <title>sales</title>
+                <g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+                    <g transform="translate(-1720.000000, -592.000000)" fill="#FFFFFF" fill-rule="nonzero">
+                        <g transform="translate(1716.000000, 291.000000)">
+                            <g transform="translate(4.000000, 301.000000)">
+                                <path class="color-background" d="M20,4 L28,12 L28,28 L12,28 L12,12 L20,4 Z"></path>
+                            </g>
+                        </g>
+                    </g>
+                </g>
+            </svg>
+        </div>
+        <span class="nav-link-text ms-1">Sales</span>
+    </a>
+</li>
+      <li class="nav-item">
         <a class="nav-link <?php echo $current_page == 'products.php' ? 'active' : ''; ?>" href="../pages/products.php">
           <div class="icon icon-shape icon-sm shadow border-radius-md bg-white text-center me-2 d-flex align-items-center justify-content-center">
             <svg width="12px" height="12px" viewBox="0 0 42 42" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
@@ -114,6 +133,27 @@ $current_page = basename($_SERVER['PHP_SELF']);
             </svg>
           </div>
           <span class="nav-link-text ms-1">Products</span>
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link <?php echo $current_page == 'buy.php' ? 'active' : ''; ?>" href="../pages/buy.php">
+          <div class="icon icon-shape icon-sm shadow border-radius-md bg-white text-center me-2 d-flex align-items-center justify-content-center">
+            <svg width="12px" height="12px" viewBox="0 0 40 40" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+              <title>users</title>
+              <g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+                <g transform="translate(-1720.000000, -592.000000)" fill="#FFFFFF" fill-rule="nonzero">
+                  <g transform="translate(1716.000000, 291.000000)">
+                    <g transform="translate(4.000000, 301.000000)">
+                      <path class="color-background" d="M15,20 C19.418278,20 23,16.418278 23,12 C23,7.581722 19.418278,4 15,4 C10.581722,4 7,7.581722 7,12 C7,16.418278 10.581722,20 15,20 Z"></path>
+                      <path class="color-background opacity-6" d="M33,20 C36.3137085,20 39,17.3137085 39,14 C39,10.6862915 36.3137085,8 33,8 C29.6862915,8 27,10.6862915 27,14 C27,17.3137085 29.6862915,20 33,20 Z"></path>
+                      <path class="color-background" d="M28,28 C28,25.790861 26.209139,24 24,24 L6,24 C3.790861,24 2,25.790861 2,28 L2,32 L28,32 L28,28 Z"></path>
+                    </g>
+                  </g>
+                </g>
+              </g>
+            </svg>
+          </div>
+          <span class="nav-link-text ms-1">Buy</span>
         </a>
       </li>
       <li class="nav-item">
